@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/Murkot/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Murkot — мессенджер со вкусом свежего сока.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Murkot">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon — murkot3.1 -->
+  <link rel="icon" type="image/png" href="favicon.png?v=3.1"/>
+
+  <title>Murkot</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <script>
+    (function () {
+      var redirect = sessionStorage.getItem('murkot_redirect');
+      if (redirect) {
+        sessionStorage.removeItem('murkot_redirect');
+        if (redirect !== location.href) {
+          history.replaceState(null, '', redirect);
+        }
+      }
+    })();
+  </script>
+  <div id="murkot-boot" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-family:Segoe UI,system-ui,sans-serif;background:linear-gradient(160deg,#FFF6E8,#FFD27A 55%,#F1891E);color:#5A3010;z-index:9999;">
+    <div style="text-align:center">
+      <img src="boot-cat.png" alt="Murkot" width="200" height="200" style="display:block;margin:0 auto 22px;object-fit:contain;filter:drop-shadow(0 8px 18px rgba(90,48,16,.18))"/>
+      <!-- Match MurkotLoader: soft track + spinning arc + 3 orbiting citrus dots -->
+      <div class="murkot-loader" aria-hidden="true">
+        <div class="murkot-loader-ripple r1"></div>
+        <div class="murkot-loader-ripple r2"></div>
+        <div class="murkot-loader-arc a1"></div>
+        <div class="murkot-loader-arc a2"></div>
+        <div class="murkot-loader-dot d1"></div>
+        <div class="murkot-loader-dot d2"></div>
+        <div class="murkot-loader-dot d3"></div>
+        <div class="murkot-loader-dot d4"></div>
+        <div class="murkot-loader-core"></div>
+      </div>
+      <div style="margin-top:16px;font-size:14px;opacity:.9;font-weight:600;letter-spacing:.08em">Loading Murkot…</div>
+    </div>
+  </div>
+  <style>
+    .murkot-loader {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      margin: 0 auto;
+    }
+    .murkot-loader-ripple {
+      position: absolute; inset: 0;
+      border: 2px solid rgba(241,137,30,.28);
+      border-radius: 50%;
+      animation: murkot-ripple 1.8s ease-out infinite;
+    }
+    .murkot-loader-ripple.r2 { animation-delay: .6s; }
+    .murkot-loader-arc {
+      position: absolute; inset: 4px;
+      border: 3.5px solid transparent;
+      border-radius: 50%;
+    }
+    .murkot-loader-arc.a1 {
+      border-top-color: #FCBF34;
+      border-right-color: #F1891E;
+      animation: murkot-spin 1.15s cubic-bezier(.45,.05,.55,.95) infinite;
+    }
+    .murkot-loader-arc.a2 {
+      inset: 10px;
+      border-bottom-color: #E07010;
+      border-left-color: #FCBF34;
+      animation: murkot-spin-rev 1.45s cubic-bezier(.45,.05,.55,.95) infinite;
+    }
+    .murkot-loader-core {
+      position: absolute; left: 50%; top: 50%;
+      width: 10px; height: 10px; margin: -5px 0 0 -5px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #FCBF34, #F1891E 55%, #E07010);
+      animation: murkot-pulse 1s ease-in-out infinite;
+      box-shadow: 0 0 10px rgba(241,137,30,.45);
+    }
+    .murkot-loader-dot {
+      position: absolute; left: 50%; top: 50%;
+      width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
+      border-radius: 50%;
+      animation: murkot-orbit 1.6s linear infinite;
+      box-shadow: inset -1px -1px 0 rgba(255,255,255,.45);
+    }
+    .murkot-loader-dot.d1 { background: #FCBF34; animation-delay: 0s; }
+    .murkot-loader-dot.d2 { background: #F1891E; animation-delay: -.4s; }
+    .murkot-loader-dot.d3 { background: #E07010; animation-delay: -.8s; }
+    .murkot-loader-dot.d4 { background: #FFE2A8; animation-delay: -1.2s; }
+    @keyframes murkot-spin { to { transform: rotate(360deg); } }
+    @keyframes murkot-spin-rev { to { transform: rotate(-360deg); } }
+    @keyframes murkot-orbit {
+      from { transform: rotate(0deg) translateX(16px) rotate(0deg); }
+      to   { transform: rotate(360deg) translateX(16px) rotate(-360deg); }
+    }
+    @keyframes murkot-ripple {
+      0%   { transform: scale(.45); opacity: .55; }
+      100% { transform: scale(1.05); opacity: 0; }
+    }
+    @keyframes murkot-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.18); }
+    }
+  </style>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('murkot-boot');
+      if (!el) return;
+      el.style.transition = 'opacity .35s ease';
+      el.style.opacity = '0';
+      setTimeout(function () { el.remove(); }, 380);
+    });
+  </script>
+  <script>
+    // Voice note recorder (MediaRecorder → base64).
+    let _murkotVoiceRecorder = null;
+    let _murkotVoiceChunks = [];
+    let _murkotVoiceStartedAt = 0;
+    let _murkotVoiceStream = null;
+
+    window.murkotVoiceStart = async function () {
+      if (!navigator.mediaDevices?.getUserMedia) return false;
+      _murkotVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      _murkotVoiceChunks = [];
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+      _murkotVoiceRecorder = new MediaRecorder(_murkotVoiceStream, { mimeType: mime });
+      _murkotVoiceRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) _murkotVoiceChunks.push(e.data);
+      };
+      _murkotVoiceStartedAt = Date.now();
+      _murkotVoiceRecorder.start();
+      return true;
+    };
+
+    window.murkotVoiceStop = async function () {
+      if (!_murkotVoiceRecorder) return null;
+      const recorder = _murkotVoiceRecorder;
+      const mimeType = recorder.mimeType || 'audio/webm';
+      const blob = await new Promise((resolve) => {
+        recorder.onstop = () => resolve(new Blob(_murkotVoiceChunks, { type: mimeType }));
+        recorder.stop();
+      });
+      (_murkotVoiceStream?.getTracks() || []).forEach((t) => t.stop());
+      _murkotVoiceRecorder = null;
+      _murkotVoiceStream = null;
+      const durationMs = Date.now() - _murkotVoiceStartedAt;
+      const buffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return {
+        base64: btoa(binary),
+        mimeType,
+        durationMs,
+      };
+    };
+
+    window.murkotVoiceCancel = async function () {
+      try {
+        if (_murkotVoiceRecorder && _murkotVoiceRecorder.state !== 'inactive') {
+          _murkotVoiceRecorder.stop();
+        }
+      } catch (_) {}
+      (_murkotVoiceStream?.getTracks() || []).forEach((t) => t.stop());
+      _murkotVoiceRecorder = null;
+      _murkotVoiceStream = null;
+      _murkotVoiceChunks = [];
+    };
+
+    // Web Push helper for Flutter (stores subscription via NotificationService).
+    window.murkotRegisterWebPush = async function (vapidPublicKey) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return null;
+      }
+      const reg = await navigator.serviceWorker.register('push-sw.js');
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const padding = '='.repeat((4 - (vapidPublicKey.length % 4)) % 4);
+        const base64 = (vapidPublicKey + padding)
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const raw = atob(base64);
+        const key = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i);
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+      }
+      return JSON.stringify(sub.toJSON());
+    };
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
