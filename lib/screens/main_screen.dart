@@ -23,6 +23,7 @@ import '../utils/configure_web.dart';
 import '../utils/invite_deep_link.dart';
 import '../utils/main_tab_bus.dart';
 import '../utils/profile_deep_link.dart';
+import '../widgets/ad_ticker.dart';
 import '../widgets/avatar_display.dart';
 import '../widgets/command_palette.dart';
 import '../widgets/murkot_boot_screen.dart';
@@ -512,7 +513,22 @@ class _MainScreenState extends State<MainScreen> {
       appBar: _currentIndex == MainTabs.profile
           ? null
           : AppBar(
-              title: Text(_sectionTitle),
+              title: Row(
+                children: [
+                  Flexible(
+                    flex: 2,
+                    child: Text(
+                      _sectionTitle,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (_currentIndex == MainTabs.board ||
+                      _currentIndex == MainTabs.chats) ...[
+                    const SizedBox(width: 8),
+                    const Expanded(flex: 3, child: AdTicker()),
+                  ],
+                ],
+              ),
               actions: [
                 IconButton(
                   tooltip: strings.cmdShortcutHint,

@@ -474,7 +474,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final strings = context.strings;
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = screenWidth * 0.48;
+    final isNarrow = screenWidth < 720;
+    final contentWidth = isNarrow
+        ? screenWidth
+        : (screenWidth * 0.48).clamp(320.0, 480.0);
 
     return ListenableBuilder(
       listenable: Listenable.merge([
@@ -492,9 +495,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final hasFileWallpaper = localPathExists(customPath);
         final hasCustomWallpaper = isNetworkWallpaper || hasFileWallpaper;
 
-        final screenHeight = MediaQuery.of(context).size.height;
-        // Wallpaper covers top 75%; bottom 25% stays the solid scaffold color.
-        final wallpaperHeight = screenHeight * 0.75;
+        // Avatar size: square on all phones (never oval).
+        final avatarRadius = isNarrow
+            ? (screenWidth * 0.18).clamp(64.0, 88.0)
+            : (screenWidth * 0.12).clamp(88.0, 120.0);
+        final avatarSize = avatarRadius * 2;
+        final topSafe = MediaQuery.paddingOf(context).top;
+        final actionsPad = 48.0;
+        // Wallpaper from top down to 25% of avatar height below avatar bottom.
+        final wallpaperHeight =
+            topSafe + actionsPad + avatarSize + avatarSize * 0.25;
 
         return Stack(
           children: [
@@ -518,18 +528,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Container(
-                  width: cardWidth.clamp(280.0, 480.0),
-                  margin: const EdgeInsets.only(top: 12),
+                  width: contentWidth,
+                  margin: EdgeInsets.only(top: isNarrow ? 0 : 12),
                   child: Material(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    color: theme.colorScheme.surface.withValues(
+                      alpha: isNarrow ? 0.92 : 1,
+                    ),
+                    borderRadius: isNarrow
+                        ? const BorderRadius.vertical(top: Radius.circular(0))
+                        : const BorderRadius.vertical(top: Radius.circular(20)),
                     clipBehavior: Clip.antiAlias,
-                    elevation: 6,
+                    elevation: isNarrow ? 0 : 6,
                     child: Column(
                       children: [
                         Expanded(
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(20),
+                            padding: EdgeInsets.fromLTRB(
+                              isNarrow ? 16 : 20,
+                              12,
+                              isNarrow ? 16 : 20,
+                              20,
+                            ),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Align(
                                   alignment: Alignment.centerRight,
@@ -582,12 +603,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   login: current.login,
                                   nickColorId: current.nickColorId,
                                   frame: current.avatarFrame,
-                                  showPlusBadge: current.isPlus || _billing.isPlus,
+                                  showPlusBadge:
+                                      current.isPlus || _billing.isPlus,
                                   devStatus: current.devStatus,
                                   isLoading: _isUpdatingAvatar,
                                   hint: strings.changeAvatarHint,
-                                  onTap: _isUpdatingAvatar ? null : _showAvatarOptions,
+                                  onTap: _isUpdatingAvatar
+                                      ? null
+                                      : _showAvatarOptions,
                                   onLoginTap: _changeLogin,
+                                  forceRadius: avatarRadius,
                                 ),
                                 if (!widget.settingsService.profileNudgeDismissed &&
                                     _profileFillScore(current) < 5) ...[
@@ -882,6 +907,7 @@ class _AvatarSection extends StatelessWidget {
     required this.hint,
     required this.onTap,
     required this.onLoginTap,
+    this.forceRadius,
   });
 
   final String? avatarPath;
@@ -895,74 +921,94 @@ class _AvatarSection extends StatelessWidget {
   final String hint;
   final VoidCallback? onTap;
   final VoidCallback onLoginTap;
+  final double? forceRadius;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final radius =
-        (MediaQuery.sizeOf(context).width * 0.36).clamp(110.0, 156.0);
+    final width = MediaQuery.sizeOf(context).width;
+    final radius = forceRadius ??
+        (width < 720
+            ? (width * 0.18).clamp(64.0, 88.0)
+            : (width * 0.12).clamp(88.0, 120.0));
     final nickColor = nickColorFromId(nickColorId);
+    final size = radius * 2;
 
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const CircleBorder(),
-                child: AvatarDisplay(
-                  avatarPath: avatarPath,
-                  avatarEmoji: avatarEmoji,
-                  name: login,
-                  radius: radius,
-                  frame: frame,
-                  showPlusBadge: showPlusBadge,
+        Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap,
+                    customBorder: const CircleBorder(),
+                    child: AvatarDisplay(
+                      avatarPath: avatarPath,
+                      avatarEmoji: avatarEmoji,
+                      name: login,
+                      radius: radius,
+                      frame: frame,
+                      showPlusBadge: showPlusBadge,
+                    ),
+                  ),
                 ),
-              ),
+                if (isLoading)
+                  Container(
+                    width: size,
+                    height: size,
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: MurkotLoader(size: 36, color: Colors.white),
+                    ),
+                  ),
+              ],
             ),
-            if (isLoading)
-              Container(
-                width: radius * 2,
-                height: radius * 2,
-                decoration: const BoxDecoration(
-                  color: Colors.black45,
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: MurkotLoader(size: 36, color: Colors.white),
-                ),
-              ),
-          ],
+          ),
         ),
         const SizedBox(height: 12),
         InkWell(
           onTap: onLoginTap,
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                login,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: nickColor,
+              Flexible(
+                child: Text(
+                  login,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: nickColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 4),
-              Icon(Icons.edit, size: 16, color: Colors.grey.shade600),
+              Icon(Icons.edit_outlined, size: 16, color: theme.colorScheme.outline),
             ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          hint,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
           ),
         ),
         if (devStatus != DevStatus.none) ...[
           const SizedBox(height: 10),
           DevStatusBadge(status: devStatus, large: true),
         ],
-        const SizedBox(height: 4),
-        Text(hint,
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
-            textAlign: TextAlign.center),
       ],
     );
   }

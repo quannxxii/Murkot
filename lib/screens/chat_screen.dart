@@ -2721,7 +2721,7 @@ class _MessageBubble extends StatelessWidget {
                             else if (media != null &&
                                 message.type == MessageType.video &&
                                 media.isCircle)
-                              CircleVideoPlayer(url: media.url)
+                              CircleVideoPlayer(url: media.url, size: 200)
                             else if (media != null &&
                                 isImageType &&
                                 media.album.length > 1)

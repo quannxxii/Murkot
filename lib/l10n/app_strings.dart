@@ -247,9 +247,14 @@ class AppStrings {
   String get inviteRedeemFailed =>
       isRu ? 'Не удалось вступить по инвайту' : 'Could not redeem invite';
   String get inviteMakePublic =>
-      isRu ? 'Сделать публичной' : 'Make public';
+      isRu ? 'Сделать сообществом' : 'Make a community';
   String get inviteMakePrivate =>
-      isRu ? 'Сделать приватной' : 'Make private';
+      isRu ? 'Убрать из сообществ' : 'Remove from communities';
+  String get matchRestartFeed =>
+      isRu ? 'Начать заново' : 'Start over';
+  String get matchRestartFeedHint => isRu
+      ? 'Покажем снова тех, кого вы ещё не лайкнули'
+      : 'We’ll show people you haven’t liked yet';
   String get yes => isRu ? 'Да' : 'Yes';
   String get save => isRu ? 'Сохранить' : 'Save';
   String get confirmLogout => isRu ? 'Выйти' : 'Log out';

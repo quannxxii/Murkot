@@ -44,7 +44,7 @@ const _kCats = <_CatGif>[
   _CatGif(id: '5a3YH3bjZJWlsZ95', name: 'cat', tags: ['cat', 'кот']),
 ];
 
-/// Animated fallbacks hosted on Giphy CDN — always animated, CORS-friendly on web.
+/// Animated fallbacks hosted on Giphy CDN — memes + cats, CORS-friendly on web.
 const _kAnimatedFallback = <GifHit>[
   GifHit(previewUrl: 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif', url: 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif', name: 'cat dance'),
   GifHit(previewUrl: 'https://media.giphy.com/media/mlvseq9yvZhba/giphy.gif', url: 'https://media.giphy.com/media/mlvseq9yvZhba/giphy.gif', name: 'cat typing'),
@@ -54,6 +54,27 @@ const _kAnimatedFallback = <GifHit>[
   GifHit(previewUrl: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', url: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', name: 'cat heart'),
   GifHit(previewUrl: 'https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif', url: 'https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif', name: 'cat sleeping'),
   GifHit(previewUrl: 'https://media.giphy.com/media/wKNI6F6M1Cha/giphy.gif', url: 'https://media.giphy.com/media/wKNI6F6M1Cha/giphy.gif', name: 'cat work'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/5VKbvrjxpVJCM/giphy.gif', url: 'https://media.giphy.com/media/5VKbvrjxpVJCM/giphy.gif', name: 'this is fine'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/3o7aCTPPm4OHfRLSH6/giphy.gif', url: 'https://media.giphy.com/media/3o7aCTPPm4OHfRLSH6/giphy.gif', name: 'mind blown'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', url: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', name: 'love'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/26BRv0ThAiIdPKWU0/giphy.gif', url: 'https://media.giphy.com/media/26BRv0ThAiIdPKWU0/giphy.gif', name: 'nope'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif', url: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif', name: 'awkward'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/3orieUeweTEpj2ysE8/giphy.gif', url: 'https://media.giphy.com/media/3orieUeweTEpj2ysE8/giphy.gif', name: 'deal with it'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/26gsjCZpPolPr3sBy/giphy.gif', url: 'https://media.giphy.com/media/26gsjCZpPolPr3sBy/giphy.gif', name: 'facepalm'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/3o6Zt6ML6BklcajjsA/giphy.gif', url: 'https://media.giphy.com/media/3o6Zt6ML6BklcajjsA/giphy.gif', name: 'laugh cry'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif', url: 'https://media.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif', name: 'wow'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/xT0xeJpnrWC4XWblEk/giphy.gif', url: 'https://media.giphy.com/media/xT0xeJpnrWC4XWblEk/giphy.gif', name: 'clap'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/26ufdipQqUJ7FM4Ym/giphy.gif', url: 'https://media.giphy.com/media/26ufdipQqUJ7FM4Ym/giphy.gif', name: 'thumbs up'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif', url: 'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif', name: 'loading'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif', url: 'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif', name: 'shrug'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif', url: 'https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif', name: 'party'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/26gsjCZpPolPr3sBy/giphy.gif', url: 'https://media.giphy.com/media/26gsjCZpPolPr3sBy/giphy.gif', name: 'fail'),
+  GifHit(previewUrl: 'https://media.giphy.com/media/3o7TKMt1VVNkHV2PaE/giphy.gif', url: 'https://media.giphy.com/media/3o7TKMt1VVNkHV2PaE/giphy.gif', name: 'confused'),
+];
+
+const _kMemeTags = <String>[
+  'meme', 'lol', 'funny', 'fail', 'wow', 'omg', 'nope', 'yes', 'party',
+  'clap', 'facepalm', 'awkward', 'deal', 'fine', 'shrug', 'thumbs',
 ];
 
 const _kOtakuReactions = <String>[
@@ -119,13 +140,26 @@ Future<List<GifHit>> searchGifs(String rawQuery) async {
       add(GifHit(previewUrl: item.url, url: item.url, name: item.name));
     }
   }
-  // Always include a few animated fallbacks for empty / generic queries.
-  if (q.isEmpty || q == 'cat' || q == 'кот' || q == 'gif' || q == 'гиф') {
+  // Meme / humor catalog — always mix into results.
+  final wantMemes = q.isEmpty ||
+      _kMemeTags.any((t) => q.contains(t) || t.contains(q)) ||
+      q == 'gif' ||
+      q == 'гиф' ||
+      q == 'мем' ||
+      q == 'meme' ||
+      q == 'lol' ||
+      q == 'смех' ||
+      q == 'funny';
+  if (wantMemes || q.isEmpty) {
     for (final hit in _kAnimatedFallback) {
-      add(hit);
+      if (q.isEmpty ||
+          wantMemes ||
+          hit.name.contains(q) ||
+          q.contains(hit.name.split(' ').first)) {
+        add(hit);
+      }
     }
   } else {
-    // For specific queries, add fallback hits that match name loosely.
     for (final hit in _kAnimatedFallback) {
       if (hit.name.contains(q) || q.contains(hit.name.split(' ').first)) {
         add(hit);

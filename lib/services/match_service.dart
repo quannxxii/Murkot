@@ -181,6 +181,20 @@ class MatchService extends ChangeNotifier {
     }
   }
 
+  /// Clears passes so people you skipped can appear again (keeps mutual likes).
+  Future<void> restartUnmatchedFeed() async {
+    _loadingFeed = true;
+    _feedError = null;
+    notifyListeners();
+    try {
+      await _client.rpc('reset_match_passes');
+    } catch (e) {
+      debugPrint('reset_match_passes failed: $e');
+      // Soft fallback: reload feed as-is if SQL not applied yet.
+    }
+    await refreshFeed();
+  }
+
   /// Drops blocked users from the local feed and records a pass on the server
   /// so they do not reappear on the next refresh.
   Future<void> skipBlockedLogins(Iterable<String> blockedLogins) async {

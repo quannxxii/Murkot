@@ -3,11 +3,12 @@ import 'package:video_player/video_player.dart';
 
 import 'unlumen/murkot_fx.dart';
 
+/// Telegram-style circular video note.
 class CircleVideoPlayer extends StatefulWidget {
   const CircleVideoPlayer({
     super.key,
     required this.url,
-    this.size = 180,
+    this.size = 200,
   });
 
   final String url;
@@ -18,45 +19,64 @@ class CircleVideoPlayer extends StatefulWidget {
 }
 
 class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
-  late final VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   bool _ready = false;
   bool _failed = false;
-  bool _showControls = true;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
+  bool _playing = false;
+  double _progress = 0;
+  double _stretch = 1;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() {
-          _ready = true;
-          _duration = _controller.value.duration;
-        });
-        _controller.play();
-      }).catchError((_) {
-        if (!mounted) return;
-        setState(() => _failed = true);
+    _boot(widget.url);
+  }
+
+  Future<void> _boot(String url) async {
+    final old = _controller;
+    _controller = null;
+    old?.removeListener(_onTick);
+    await old?.dispose();
+    if (!mounted) return;
+
+    setState(() {
+      _ready = false;
+      _failed = false;
+      _playing = false;
+      _progress = 0;
+    });
+
+    final c = VideoPlayerController.networkUrl(Uri.parse(url));
+    _controller = c;
+    c.addListener(_onTick);
+    try {
+      await c.initialize();
+      if (!mounted || _controller != c) return;
+      await c.setLooping(true);
+      await c.seekTo(Duration.zero);
+      await c.play();
+      setState(() {
+        _ready = true;
+        _playing = true;
       });
-    _controller.setLooping(false);
-    _controller.addListener(_onTick);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _failed = true);
+    }
   }
 
   void _onTick() {
-    if (!_ready || !mounted) return;
-    final pos = _controller.value.position;
-    final dur = _controller.value.duration;
-    if (pos != _position || dur != _duration) {
+    final c = _controller;
+    if (c == null || !_ready || !mounted) return;
+    final dur = c.value.duration.inMilliseconds;
+    final pos = c.value.position.inMilliseconds;
+    final nextProgress = dur <= 0 ? 0.0 : (pos / dur).clamp(0.0, 1.0);
+    final nextPlaying = c.value.isPlaying;
+    if ((nextProgress - _progress).abs() > 0.002 || nextPlaying != _playing) {
       setState(() {
-        _position = pos;
-        _duration = dur;
+        _progress = nextProgress;
+        _playing = nextPlaying;
       });
-    }
-    // Auto-show play icon when finished
-    if (!_controller.value.isPlaying && _controller.value.position >= _controller.value.duration) {
-      setState(() => _showControls = true);
     }
   }
 
@@ -64,137 +84,53 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
   void didUpdateWidget(covariant CircleVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
-      _controller.removeListener(_onTick);
-      _controller.dispose();
-      _ready = false;
-      _failed = false;
-      _position = Duration.zero;
-      _duration = Duration.zero;
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-        ..initialize().then((_) {
-          if (!mounted) return;
-          setState(() {
-            _ready = true;
-            _duration = _controller.value.duration;
-          });
-          _controller.play();
-        }).catchError((_) {
-          if (!mounted) return;
-          setState(() => _failed = true);
-        });
-      _controller.setLooping(false);
-      _controller.addListener(_onTick);
+      _boot(widget.url);
     }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onTick);
-    _controller.dispose();
+    _controller?.removeListener(_onTick);
+    _controller?.dispose();
     super.dispose();
   }
 
   Future<void> _toggle() async {
-    if (!_ready) return;
-    if (_controller.value.isPlaying) {
-      await _controller.pause();
+    final c = _controller;
+    if (c == null || !_ready) return;
+    if (c.value.isPlaying) {
+      await c.pause();
     } else {
-      // Replay from start if finished
-      if (_position >= _duration && _duration != Duration.zero) {
-        await _controller.seekTo(Duration.zero);
-      }
-      await _controller.play();
+      if (_progress >= 0.98) await c.seekTo(Duration.zero);
+      await c.play();
     }
-    setState(() => _showControls = !_controller.value.isPlaying);
   }
 
-  Future<void> _seek(double fraction) async {
-    if (!_ready || _duration == Duration.zero) return;
-    final target = Duration(milliseconds: (_duration.inMilliseconds * fraction).round());
-    await _controller.seekTo(target);
+  Future<void> _seekFraction(double fraction) async {
+    final c = _controller;
+    if (c == null || !_ready) return;
+    final dur = c.value.duration;
+    if (dur == Duration.zero) return;
+    final ms = (dur.inMilliseconds * fraction.clamp(0.0, 1.0)).round();
+    await c.seekTo(Duration(milliseconds: ms));
+    if (!c.value.isPlaying) await c.play();
   }
 
-  void _openFullscreen() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
-        child: Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                minScale: 1.0,
-                maxScale: 4.0,
-                child: AspectRatio(
-                  aspectRatio: _controller.value.aspectRatio == 0 ? 1 : _controller.value.aspectRatio,
-                  child: VideoPlayer(_controller),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-            Positioned(
-              bottom: 24,
-              left: 24,
-              right: 24,
-              child: _buildControls(fullscreen: true),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString();
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  Widget _buildControls({bool fullscreen = false}) {
-    final progress = _duration.inMilliseconds == 0 ? 0.0 : _position.inMilliseconds / _duration.inMilliseconds;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Slider(
-          value: progress.clamp(0.0, 1.0),
-          onChanged: _seek,
-          activeColor: Colors.white,
-          inactiveColor: Colors.white24,
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('${_fmt(_position)} / ${_fmt(_duration)}', style: TextStyle(color: Colors.white70, fontSize: fullscreen ? 12 : 10)),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(_controller.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: fullscreen ? 28 : 20),
-                  onPressed: _toggle,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints.tightFor(width: fullscreen ? 36 : 28, height: fullscreen ? 36 : 28),
-                ),
-                if (fullscreen)
-                  IconButton(
-                    icon: Icon(_controller.value.volume == 0 ? Icons.volume_off : Icons.volume_up, color: Colors.white, size: 22),
-                    onPressed: () => _controller.setVolume(_controller.value.volume == 0 ? 1 : 0),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
+  bool _onScroll(ScrollNotification n) {
+    // Pull-down rubber-band: grow circle + video together.
+    if (n is OverscrollNotification && n.overscroll < 0) {
+      final next = (1 + (-n.overscroll) / 180).clamp(1.0, 1.35);
+      if ((next - _stretch).abs() > 0.01) setState(() => _stretch = next);
+    } else if (n is ScrollEndNotification ||
+        (n is ScrollUpdateNotification && n.metrics.pixels >= 0)) {
+      if (_stretch != 1) setState(() => _stretch = 1);
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = widget.size * _stretch;
     if (_failed) {
       return SizedBox(
         width: widget.size,
@@ -203,71 +139,132 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
       );
     }
 
-    return GestureDetector(
-      onTap: () => setState(() => _showControls = !_showControls),
-      onDoubleTap: _toggle,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
       child: SizedBox(
-        width: widget.size,
-        height: widget.size,
-        child: Stack(
-          children: [
-            ClipOval(
-              child: ColoredBox(
-                color: Colors.black,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (_ready)
-                      InteractiveViewer(
-                        minScale: 1.0,
-                        maxScale: 4.0,
-                        child: FittedBox(
-                          fit: BoxFit.cover,
-                          child: SizedBox(
-                            width: _controller.value.size.width,
-                            height: _controller.value.size.height,
-                            child: VideoPlayer(_controller),
+        width: size,
+        height: size,
+        child: GestureDetector(
+          onTap: _toggle,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipOval(
+                child: ColoredBox(
+                  color: Colors.black,
+                  child: _ready && _controller != null
+                      ? Transform.scale(
+                          // Slightly zoomed-out vs default cover → wider FOV.
+                          scale: 0.82,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            clipBehavior: Clip.hardEdge,
+                            child: SizedBox(
+                              width: _controller!.value.size.width,
+                              height: _controller!.value.size.height,
+                              child: VideoPlayer(_controller!),
+                            ),
                           ),
-                        ),
-                      )
-                    else
-                      const Center(child: MurkotLoader(size: 28)),
-                    if (_ready && !_controller.value.isPlaying && _showControls)
-                      const Center(child: Icon(Icons.play_arrow_rounded, color: Colors.white70, size: 48)),
-                  ],
+                        )
+                      : const Center(child: MurkotLoader(size: 28)),
                 ),
               ),
-            ),
-            // Expand button top-right
-            if (_ready)
-              Positioned(
-                top: 6,
-                right: 6,
-                child: InkWell(
-                  onTap: _openFullscreen,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.open_in_full, color: Colors.white70, size: 14),
+              if (_ready)
+                IgnorePointer(
+                  child: CustomPaint(
+                    painter: _CircleProgressPainter(progress: _progress),
                   ),
                 ),
-              ),
-            // Bottom scrub bar when controls shown
-            if (_ready && _showControls)
-              Positioned(
-                left: 6,
-                right: 6,
-                bottom: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
-                  child: _buildControls(),
+              if (_ready && !_playing)
+                const Center(
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white70,
+                    size: 44,
+                  ),
                 ),
-              ),
-          ],
+              if (_ready)
+                Positioned(
+                  left: size * 0.2,
+                  right: size * 0.2,
+                  bottom: 8,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragUpdate: (d) {
+                      final box = context.findRenderObject() as RenderBox?;
+                      if (box == null) return;
+                      final local = box.globalToLocal(d.globalPosition);
+                      final left = size * 0.2;
+                      final width = size * 0.6;
+                      final fraction =
+                          ((local.dx - left) / width).clamp(0.0, 1.0);
+                      _seekFraction(fraction);
+                    },
+                    onTapDown: (d) {
+                      final width = size * 0.6;
+                      final fraction =
+                          (d.localPosition.dx / width).clamp(0.0, 1.0);
+                      _seekFraction(fraction);
+                    },
+                    child: SizedBox(
+                      height: 16,
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FractionallySizedBox(
+                              widthFactor: _progress.clamp(0.0, 1.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white70,
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _CircleProgressPainter extends CustomPainter {
+  _CircleProgressPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = 2.5;
+    final rect =
+        Offset(stroke, stroke) & Size(size.width - stroke * 2, size.height - stroke * 2);
+    final bg = Paint()
+      ..color = Colors.white24
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+    final fg = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = stroke;
+    canvas.drawArc(rect, -1.5708, 6.2832, false, bg);
+    canvas.drawArc(rect, -1.5708, 6.2832 * progress.clamp(0.0, 1.0), false, fg);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleProgressPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

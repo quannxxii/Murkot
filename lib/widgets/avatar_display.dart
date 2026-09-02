@@ -69,9 +69,13 @@ class AvatarDisplay extends StatelessWidget {
             width: size,
             height: size,
             child: ClipOval(
-              child: Container(
-                color: theme.colorScheme.primaryContainer,
-                child: imageWidget,
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: Container(
+                  color: theme.colorScheme.primaryContainer,
+                  child: imageWidget,
+                ),
               ),
             ),
           )
@@ -112,6 +116,16 @@ class AvatarDisplay extends StatelessWidget {
         ),
       );
     }
+
+    // Always force a perfect circle (never oval under tight layout).
+    body = SizedBox(
+      width: total,
+      height: total,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: body,
+      ),
+    );
 
     if (!showPlusBadge) return body;
 

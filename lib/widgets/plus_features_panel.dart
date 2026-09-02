@@ -5,12 +5,12 @@ import '../models/plus_cosmetics.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/plus_analytics_service.dart';
+import '../services/billing_service.dart';
 import '../widgets/avatar_display.dart';
 import '../widgets/murkot_toast.dart';
 import '../widgets/payment_sheet.dart';
-import '../services/billing_service.dart';
 
-/// Plus cosmetics controls + who viewed / saved contacts.
+/// Plus cosmetics controls + who viewed / saved contacts (collapsible).
 class PlusFeaturesPanel extends StatefulWidget {
   const PlusFeaturesPanel({
     super.key,
@@ -32,6 +32,10 @@ class _PlusFeaturesPanelState extends State<PlusFeaturesPanel> {
   List<ProfileVisitor> _views = const [];
   List<ProfileVisitor> _saves = const [];
   bool _loadingInsight = false;
+  bool _openFrame = false;
+  bool _openNick = false;
+  bool _openViews = false;
+  bool _openSaves = false;
 
   bool get _plus => widget.user.isPlus || widget.billing.isPlus;
 
@@ -106,7 +110,7 @@ class _PlusFeaturesPanelState extends State<PlusFeaturesPanel> {
               const SizedBox(height: 8),
               Text(
                 isRu
-                    ? '• Гиф-аватар • Рамки (звёзды, блеск, волны, цитрус…) • Цвет ника • 5 бустов/сутки • До 15 объявлений • Кто смотрел профиль'
+                    ? '• Гиф-аватар • Рамки • Цвет ника • 5 бустов/сутки • До 15 объявлений • Кто смотрел профиль'
                     : '• GIF avatar • Frames • Nick color • 5 boosts/day • 15 listings • Profile viewers',
                 style: theme.textTheme.bodySmall,
               ),
@@ -140,86 +144,102 @@ class _PlusFeaturesPanelState extends State<PlusFeaturesPanel> {
       children: [
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                ListTile(
+                  dense: true,
+                  leading: Icon(Icons.workspace_premium,
+                      color: theme.colorScheme.primary),
+                  title: Text(
+                    isRu
+                        ? 'Murkot Plus активен${user.plusUntil != null ? ' до ${user.plusUntil!.day}.${user.plusUntil!.month}' : ''}'
+                        : 'Murkot Plus active',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                ExpansionTile(
+                  initiallyExpanded: _openFrame,
+                  onExpansionChanged: (v) => setState(() => _openFrame = v),
+                  title: Text(isRu ? 'Рамка аватара' : 'Avatar frame'),
+                  subtitle: Text(user.avatarFrame.title(isRu)),
                   children: [
-                    Icon(Icons.workspace_premium, color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isRu
-                            ? 'Murkot Plus активен${user.plusUntil != null ? ' до ${user.plusUntil!.day}.${user.plusUntil!.month}' : ''}'
-                            : 'Murkot Plus active',
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final frame in AvatarFrameId.values)
+                            ChoiceChip(
+                              avatar: Icon(frame.icon, size: 16),
+                              label: Text(frame.title(isRu)),
+                              selected: user.avatarFrame == frame,
+                              onSelected: (_) => _setFrame(frame),
+                            ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  isRu ? 'Рамка аватара' : 'Avatar frame',
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                ExpansionTile(
+                  initiallyExpanded: _openNick,
+                  onExpansionChanged: (v) => setState(() => _openNick = v),
+                  title: Text(isRu ? 'Цвет ника' : 'Nick color'),
+                  subtitle: Text(
+                    user.nickColorId == null
+                        ? (isRu ? 'По умолчанию' : 'Default')
+                        : (kNickColorOptions
+                                .where((o) => o.id == user.nickColorId)
+                                .firstOrNull
+                                ?.title(isRu) ??
+                            user.nickColorId!),
+                  ),
                   children: [
-                    for (final frame in AvatarFrameId.values)
-                      ChoiceChip(
-                        avatar: Icon(frame.icon, size: 16),
-                        label: Text(frame.title(isRu)),
-                        selected: user.avatarFrame == frame,
-                        onSelected: (_) => _setFrame(frame),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  isRu ? 'Цвет ника' : 'Nick color',
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: Text(isRu ? 'По умолчанию' : 'Default'),
-                      selected: user.nickColorId == null,
-                      onSelected: (_) => _setNick(null),
-                    ),
-                    for (final opt in kNickColorOptions)
-                      ChoiceChip(
-                        avatar: CircleAvatar(
-                          backgroundColor: opt.color,
-                          radius: 8,
-                        ),
-                        label: Text(
-                          opt.title(isRu),
-                          style: TextStyle(
-                            color: user.nickColorId == opt.id ? opt.color : null,
-                            fontWeight: FontWeight.w700,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: Text(isRu ? 'По умолчанию' : 'Default'),
+                            selected: user.nickColorId == null,
+                            onSelected: (_) => _setNick(null),
                           ),
-                        ),
-                        selected: user.nickColorId == opt.id,
-                        onSelected: (_) => _setNick(opt.id),
+                          for (final opt in kNickColorOptions)
+                            ChoiceChip(
+                              avatar: CircleAvatar(
+                                backgroundColor: opt.color,
+                                radius: 8,
+                              ),
+                              label: Text(
+                                opt.title(isRu),
+                                style: TextStyle(
+                                  color: user.nickColorId == opt.id
+                                      ? opt.color
+                                      : null,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              selected: user.nickColorId == opt.id,
+                              onSelected: (_) => _setNick(opt.id),
+                            ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  isRu
-                      ? 'Гиф-аватар: в меню аватара выбери «Галерея» и загрузи .gif'
-                      : 'GIF avatar: open avatar menu → Gallery and pick a .gif',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    isRu
+                        ? 'Гиф-аватар: в меню аватара выбери «Галерея» и загрузи .gif'
+                        : 'GIF avatar: open avatar menu → Gallery and pick a .gif',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ),
               ],
@@ -228,67 +248,79 @@ class _PlusFeaturesPanelState extends State<PlusFeaturesPanel> {
         ),
         const SizedBox(height: 12),
         Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.visibility_outlined,
-                        color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      isRu ? 'Кто смотрел профиль' : 'Profile viewers',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: _loadInsight,
-                      icon: const Icon(Icons.refresh, size: 18),
-                    ),
-                  ],
+          child: Column(
+            children: [
+              ExpansionTile(
+                initiallyExpanded: _openViews,
+                onExpansionChanged: (v) {
+                  setState(() => _openViews = v);
+                  if (v && _views.isEmpty) _loadInsight();
+                },
+                leading: Icon(Icons.visibility_outlined,
+                    color: theme.colorScheme.primary),
+                title: Text(isRu ? 'Кто смотрел профиль' : 'Profile viewers'),
+                subtitle: Text(
+                  _loadingInsight
+                      ? '…'
+                      : (_views.isEmpty
+                          ? (isRu ? 'Пока никто' : 'Nobody yet')
+                          : '${_views.length}'),
                 ),
-                if (_loadingInsight)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_views.isEmpty)
-                  Text(
-                    isRu ? 'Пока никто не заходил' : 'No viewers yet',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  )
-                else
-                  for (final v in _views.take(12))
-                    _VisitorTile(visitor: v, isRu: isRu),
-                const Divider(height: 24),
-                Row(
-                  children: [
-                    Icon(Icons.bookmark_added_outlined,
-                        color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      isRu ? 'Кто сохранял контакты' : 'Contact saves',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                  ],
+                trailing: IconButton(
+                  onPressed: _loadInsight,
+                  icon: const Icon(Icons.refresh, size: 18),
                 ),
-                const SizedBox(height: 8),
-                if (_saves.isEmpty)
-                  Text(
-                    isRu ? 'Пока пусто' : 'Nothing yet',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  )
-                else
-                  for (final v in _saves.take(12))
-                    _VisitorTile(visitor: v, isRu: isRu, showSource: true),
-              ],
-            ),
+                children: [
+                  if (_loadingInsight)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_views.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Text(
+                        isRu ? 'Пока никто не заходил' : 'No viewers yet',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    )
+                  else
+                    for (final v in _views.take(12))
+                      _VisitorTile(visitor: v, isRu: isRu),
+                ],
+              ),
+              ExpansionTile(
+                initiallyExpanded: _openSaves,
+                onExpansionChanged: (v) {
+                  setState(() => _openSaves = v);
+                  if (v && _saves.isEmpty) _loadInsight();
+                },
+                leading: Icon(Icons.bookmark_added_outlined,
+                    color: theme.colorScheme.primary),
+                title:
+                    Text(isRu ? 'Кто сохранял контакты' : 'Contact saves'),
+                subtitle: Text(
+                  _saves.isEmpty
+                      ? (isRu ? 'Пока пусто' : 'Nothing yet')
+                      : '${_saves.length}',
+                ),
+                children: [
+                  if (_saves.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Text(
+                        isRu ? 'Пока пусто' : 'Nothing yet',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    )
+                  else
+                    for (final v in _saves.take(12))
+                      _VisitorTile(visitor: v, isRu: isRu, showSource: true),
+                ],
+              ),
+            ],
           ),
         ),
       ],
@@ -310,45 +342,25 @@ class _VisitorTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final nickColor = nickColorFromId(visitor.nickColorId);
-    final sourceLabel = switch (visitor.source) {
-      'respond' => isRu ? 'отклик' : 'response',
-      'airdrop' => isRu ? 'письмо' : 'note',
-      'chat' => isRu ? 'чат' : 'chat',
-      _ => visitor.source,
-    };
     return ListTile(
-      contentPadding: EdgeInsets.zero,
       dense: true,
       leading: AvatarDisplay(
         name: visitor.login,
         avatarPath: visitor.avatarUrl,
         avatarEmoji: visitor.avatarEmoji,
-        frame: visitor.avatarFrame,
         radius: 18,
       ),
-      title: Text(
-        visitor.login,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: nickColor,
-        ),
-      ),
+      title: Text(visitor.login),
       subtitle: Text(
-        [
-          _rel(visitor.at, isRu),
-          if (showSource && sourceLabel != null) sourceLabel,
-        ].join(' · '),
-        style: theme.textTheme.labelSmall,
+        showSource && (visitor.source ?? '').isNotEmpty
+            ? visitor.source!
+            : _fmt(visitor.at),
+        style: theme.textTheme.bodySmall,
       ),
     );
   }
 
-  String _rel(DateTime t, bool isRu) {
-    final d = DateTime.now().difference(t);
-    if (d.inMinutes < 1) return isRu ? 'только что' : 'just now';
-    if (d.inHours < 1) return isRu ? '${d.inMinutes} мин' : '${d.inMinutes}m';
-    if (d.inDays < 1) return isRu ? '${d.inHours} ч' : '${d.inHours}h';
-    return isRu ? '${d.inDays} дн' : '${d.inDays}d';
+  String _fmt(DateTime at) {
+    return '${at.day.toString().padLeft(2, '0')}.${at.month.toString().padLeft(2, '0')} ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
   }
 }

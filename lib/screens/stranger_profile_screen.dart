@@ -111,7 +111,7 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
   Future<void> _togglePublic(bool makePublic) async {
     try {
       await widget.chatService
-          .setConversationPublic(_conversation.id, makePublic);
+          .setConversationCommunity(_conversation.id, makePublic);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -594,20 +594,25 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
     ThemeData theme,
     AppStrings strings,
   ) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 720;
-    final radius = isDesktop ? 72.0 : 48.0;
+    final isNarrow = MediaQuery.sizeOf(context).width < 720;
+    final radius = isNarrow
+        ? (MediaQuery.sizeOf(context).width * 0.18).clamp(64.0, 88.0)
+        : 72.0;
     final avatarSize = radius * 2;
     final wallpaper = ProfileWallpaper.byId(
       _peerProfile?.profileWallpaperId ?? 'blue',
     );
     final custom = _peerProfile?.customWallpaperPath;
-    final wallpaperHeight = avatarSize * 0.75 + 48;
+    final topSafe = MediaQuery.paddingOf(context).top;
+    // Same rule as own profile: wallpaper to 25% of avatar height below bottom.
+    final wallpaperHeight = topSafe + 12 + avatarSize + avatarSize * 0.25;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: wallpaperHeight + avatarSize * 0.25,
+          height: wallpaperHeight,
           width: double.infinity,
           child: Stack(
             clipBehavior: Clip.none,
@@ -626,32 +631,36 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
                       ),
               ),
               Positioned(
-                top: wallpaperHeight - avatarSize * 0.75,
+                top: wallpaperHeight - avatarSize - avatarSize * 0.25,
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: GestureDetector(
-                    onTap: _conversation.avatarPath == null
-                        ? null
-                        : () => MediaViewerScreen.open(
-                              context,
-                              urls: [_conversation.avatarPath!],
-                              title: _conversation.name,
-                            ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 4,
+                  child: SizedBox(
+                    width: avatarSize,
+                    height: avatarSize,
+                    child: GestureDetector(
+                      onTap: _conversation.avatarPath == null
+                          ? null
+                          : () => MediaViewerScreen.open(
+                                context,
+                                urls: [_conversation.avatarPath!],
+                                title: _conversation.name,
+                              ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: theme.colorScheme.surface,
+                            width: 4,
+                          ),
                         ),
-                      ),
-                      child: AvatarDisplay(
-                        name: _conversation.name,
-                        avatarPath: _conversation.avatarPath,
-                        avatarEmoji: conversationAvatarEmoji(_conversation),
-                        radius: radius,
-                        fontSize: isDesktop ? radius * 0.55 : 32,
+                        child: AvatarDisplay(
+                          name: _conversation.name,
+                          avatarPath: _conversation.avatarPath,
+                          avatarEmoji: conversationAvatarEmoji(_conversation),
+                          radius: radius - 4,
+                          fontSize: radius * 0.55,
+                        ),
                       ),
                     ),
                   ),
@@ -661,18 +670,21 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          _conversation.name,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: isDesktop ? 28 : null,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            _conversation.name,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: isNarrow ? 24 : 28,
+            ),
           ),
         ),
         if (_isDirect && _conversation.contactStatus.isNotEmpty) ...[
           const SizedBox(height: 12),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),

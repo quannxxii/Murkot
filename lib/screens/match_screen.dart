@@ -327,6 +327,7 @@ class _MatchScreenState extends State<MatchScreen> {
                       onLike: () => _swipe(true),
                       onPass: () => _swipe(false),
                       onRetry: _loadFeed,
+                      onRestart: () => service.restartUnmatchedFeed(),
                       onOpenListings: () {
                         mainTabIndex.value = MainTabs.board;
                         requestBoardTab(0);
@@ -350,6 +351,7 @@ class _FeedPane extends StatelessWidget {
     required this.onLike,
     required this.onPass,
     required this.onRetry,
+    required this.onRestart,
     required this.onOpenListings,
     required this.onOpenProfile,
   });
@@ -359,6 +361,7 @@ class _FeedPane extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback onPass;
   final Future<void> Function() onRetry;
+  final Future<void> Function() onRestart;
   final VoidCallback onOpenListings;
   final VoidCallback onOpenProfile;
 
@@ -382,13 +385,18 @@ class _FeedPane extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.45,
+              height: MediaQuery.of(context).size.height * 0.55,
               child: _EmptyState(
                 text: strings.matchEmptyFeed,
-                primaryLabel: strings.matchEmptyFeedListings,
-                onPrimary: onOpenListings,
-                secondaryLabel: strings.matchEmptyFeedProfile,
-                onSecondary: onOpenProfile,
+                primaryLabel: strings.matchRestartFeed,
+                onPrimary: () {
+                  onRestart();
+                },
+                secondaryLabel: strings.matchEmptyFeedListings,
+                onSecondary: onOpenListings,
+                tertiaryLabel: strings.matchEmptyFeedProfile,
+                onTertiary: onOpenProfile,
+                hint: strings.matchRestartFeedHint,
               ),
             ),
           ],
@@ -739,6 +747,9 @@ class _EmptyState extends StatelessWidget {
     this.onPrimary,
     this.secondaryLabel,
     this.onSecondary,
+    this.tertiaryLabel,
+    this.onTertiary,
+    this.hint,
   });
 
   final String text;
@@ -746,6 +757,9 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback? onPrimary;
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
+  final String? tertiaryLabel;
+  final VoidCallback? onTertiary;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -762,18 +776,35 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
+            if (hint != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                hint!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+              ),
+            ],
             if (primaryLabel != null && onPrimary != null) ...[
               const SizedBox(height: 16),
-              FilledButton.tonal(
+              FilledButton(
                 onPressed: onPrimary,
                 child: Text(primaryLabel!),
               ),
             ],
             if (secondaryLabel != null && onSecondary != null) ...[
               const SizedBox(height: 8),
-              TextButton(
+              FilledButton.tonal(
                 onPressed: onSecondary,
                 child: Text(secondaryLabel!),
+              ),
+            ],
+            if (tertiaryLabel != null && onTertiary != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onTertiary,
+                child: Text(tertiaryLabel!),
               ),
             ],
           ],

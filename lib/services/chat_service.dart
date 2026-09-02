@@ -569,6 +569,36 @@ class ChatService extends ChangeNotifier {
     );
   }
 
+  /// Public + featured so the group/channel appears in Board → Communities.
+  Future<void> setConversationCommunity(
+    String conversationId,
+    bool asCommunity,
+  ) async {
+    try {
+      await _client.rpc(
+        'set_conversation_community',
+        params: {
+          'p_conversation_id': conversationId,
+          'p_as_community': asCommunity,
+        },
+      );
+    } catch (_) {
+      // Fallback if v27 SQL not applied yet.
+      await setConversationPublic(conversationId, asCommunity);
+      try {
+        await _client.from('conversations').update({
+          'is_featured': asCommunity,
+        }).eq('id', conversationId);
+      } catch (e) {
+        debugPrint('setConversationCommunity featured fallback: $e');
+      }
+    }
+    final index = _conversations.indexWhere((c) => c.id == conversationId);
+    if (index != -1) {
+      notifyListeners();
+    }
+  }
+
   /// Search text messages across all my conversations of [type].
   Future<List<MessageSearchHit>> searchMessagesGlobal(
     String query,
@@ -1138,6 +1168,19 @@ class ChatService extends ChangeNotifier {
 
     list[index] = list[index].copyWith(content: newContent, isEdited: true);
     _syncConversationPreview(conversationId);
+
+    // Also patch DB preview if this is still the latest visible message
+    // (v27 trigger does the same; this helps before migration is applied).
+    final visible = getMessages(conversationId);
+    if (visible.isNotEmpty && visible.last.id == messageId) {
+      try {
+        await _client.from('conversations').update({
+          'last_message': messagePreviewText(visible.last, maxChars: 200),
+        }).eq('id', conversationId);
+      } catch (e) {
+        debugPrint('editMessage preview patch: $e');
+      }
+    }
     notifyListeners();
   }
 

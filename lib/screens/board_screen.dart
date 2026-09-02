@@ -12,7 +12,6 @@ import '../services/presence_service.dart';
 import '../services/projects_service.dart';
 import '../services/settings_service.dart';
 import '../utils/board_tab_bus.dart';
-import '../widgets/ad_ticker.dart';
 import '../widgets/murkot_decor.dart';
 import 'communities_screen.dart';
 import 'listings_screen.dart';
@@ -219,7 +218,6 @@ class _BoardScreenState extends State<BoardScreen>
               Row(
                 children: [
                   Expanded(
-                    flex: 3,
                     child: TabBar(
                       controller: _tabs,
                       isScrollable: true,
@@ -233,8 +231,6 @@ class _BoardScreenState extends State<BoardScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  const Flexible(flex: 2, child: AdTicker()),
                 ],
               ),
             ],

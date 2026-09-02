@@ -10,7 +10,6 @@ import '../services/chat_service.dart';
 import '../services/presence_service.dart';
 import '../services/settings_service.dart';
 import '../utils/invite_deep_link.dart';
-import '../widgets/ad_ticker.dart';
 import '../widgets/avatar_display.dart';
 import '../widgets/confirm_dialogs.dart';
 import '../widgets/conversation_list_tile.dart';
@@ -273,15 +272,12 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
             Row(
               children: [
                 Expanded(
-                  flex: 3,
                   child: SectionSearchBar(
                     controller: _searchController,
                     hint: searchHintForSection(strings, _sectionIndex),
                     onChanged: _onQueryChanged,
                   ),
                 ),
-                const SizedBox(width: 6),
-                const Flexible(flex: 2, child: AdTicker()),
               ],
             ),
             if (_searchingMessages) const LinearProgressIndicator(minHeight: 2),
