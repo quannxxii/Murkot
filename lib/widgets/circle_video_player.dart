@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import 'unlumen/murkot_fx.dart';
 
-/// Telegram-style circular video note.
+/// Telegram-style circular video note — tap pause/play, drag on the ring to seek.
 class CircleVideoPlayer extends StatefulWidget {
   const CircleVideoPlayer({
     super.key,
@@ -23,8 +25,8 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
   bool _ready = false;
   bool _failed = false;
   bool _playing = false;
+  bool _seeking = false;
   double _progress = 0;
-  double _stretch = 1;
 
   @override
   void initState() {
@@ -52,9 +54,10 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
     try {
       await c.initialize();
       if (!mounted || _controller != c) return;
-      await c.setLooping(true);
+      await c.setLooping(false);
       await c.seekTo(Duration.zero);
       await c.play();
+      if (!mounted || _controller != c) return;
       setState(() {
         _ready = true;
         _playing = true;
@@ -67,11 +70,22 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
 
   void _onTick() {
     final c = _controller;
-    if (c == null || !_ready || !mounted) return;
+    if (c == null || !_ready || !mounted || _seeking) return;
     final dur = c.value.duration.inMilliseconds;
     final pos = c.value.position.inMilliseconds;
-    final nextProgress = dur <= 0 ? 0.0 : (pos / dur).clamp(0.0, 1.0);
-    final nextPlaying = c.value.isPlaying;
+    var nextProgress = dur <= 0 ? 0.0 : (pos / dur).clamp(0.0, 1.0);
+    var nextPlaying = c.value.isPlaying;
+
+    // Stop at the end (no infinite loop).
+    if (dur > 0 && pos >= dur - 80 && !c.value.isPlaying) {
+      nextProgress = 1.0;
+      nextPlaying = false;
+    } else if (dur > 0 && pos >= dur - 80 && c.value.isPlaying) {
+      c.pause();
+      nextProgress = 1.0;
+      nextPlaying = false;
+    }
+
     if ((nextProgress - _progress).abs() > 0.002 || nextPlaying != _playing) {
       setState(() {
         _progress = nextProgress;
@@ -100,141 +114,136 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
     if (c == null || !_ready) return;
     if (c.value.isPlaying) {
       await c.pause();
+      if (mounted) setState(() => _playing = false);
     } else {
-      if (_progress >= 0.98) await c.seekTo(Duration.zero);
+      if (_progress >= 0.98) {
+        await c.seekTo(Duration.zero);
+        if (mounted) setState(() => _progress = 0);
+      }
       await c.play();
+      if (mounted) setState(() => _playing = true);
     }
   }
 
-  Future<void> _seekFraction(double fraction) async {
+  Future<void> _seekFraction(double fraction, {bool resume = false}) async {
     final c = _controller;
     if (c == null || !_ready) return;
     final dur = c.value.duration;
     if (dur == Duration.zero) return;
     final ms = (dur.inMilliseconds * fraction.clamp(0.0, 1.0)).round();
     await c.seekTo(Duration(milliseconds: ms));
-    if (!c.value.isPlaying) await c.play();
+    if (!mounted) return;
+    setState(() => _progress = fraction.clamp(0.0, 1.0));
+    if (resume && !c.value.isPlaying) {
+      await c.play();
+      if (mounted) setState(() => _playing = true);
+    }
   }
 
-  bool _onScroll(ScrollNotification n) {
-    // Pull-down rubber-band: grow circle + video together.
-    if (n is OverscrollNotification && n.overscroll < 0) {
-      final next = (1 + (-n.overscroll) / 180).clamp(1.0, 1.35);
-      if ((next - _stretch).abs() > 0.01) setState(() => _stretch = next);
-    } else if (n is ScrollEndNotification ||
-        (n is ScrollUpdateNotification && n.metrics.pixels >= 0)) {
-      if (_stretch != 1) setState(() => _stretch = 1);
+  double? _fractionFromLocal(Offset local, double size) {
+    final center = Offset(size / 2, size / 2);
+    final v = local - center;
+    final dist = v.distance;
+    final outer = size / 2;
+    // Only the ring band (~outer 28% of radius) seeks; center taps toggle.
+    if (dist < outer * 0.62 || dist > outer * 1.08) return null;
+    var angle = math.atan2(v.dy, v.dx); // 0 = right
+    // Shift so 0 = top, clockwise.
+    var frac = (angle + math.pi / 2) / (math.pi * 2);
+    if (frac < 0) frac += 1;
+    return frac.clamp(0.0, 1.0);
+  }
+
+  void _onSeekStart(Offset local, double size) {
+    final frac = _fractionFromLocal(local, size);
+    if (frac == null) return;
+    _seeking = true;
+    _seekFraction(frac);
+  }
+
+  void _onSeekUpdate(Offset local, double size) {
+    if (!_seeking) {
+      _onSeekStart(local, size);
+      return;
     }
-    return false;
+    final frac = _fractionFromLocal(local, size);
+    if (frac == null) return;
+    _seekFraction(frac);
+  }
+
+  Future<void> _onSeekEnd() async {
+    if (!_seeking) return;
+    _seeking = false;
+    // Stay paused after scrub so user can fine-tune; tap to resume.
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = widget.size * _stretch;
+    final size = widget.size;
     if (_failed) {
       return SizedBox(
-        width: widget.size,
-        height: widget.size,
+        width: size,
+        height: size,
         child: const Center(child: Icon(Icons.broken_image_outlined)),
       );
     }
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScroll,
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: GestureDetector(
-          onTap: _toggle,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              ClipOval(
-                child: ColoredBox(
-                  color: Colors.black,
-                  child: _ready && _controller != null
-                      ? Transform.scale(
-                          // Slightly zoomed-out vs default cover → wider FOV.
-                          scale: 0.82,
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            clipBehavior: Clip.hardEdge,
-                            child: SizedBox(
-                              width: _controller!.value.size.width,
-                              height: _controller!.value.size.height,
-                              child: VideoPlayer(_controller!),
-                            ),
-                          ),
-                        )
-                      : const Center(child: MurkotLoader(size: 28)),
-                ),
-              ),
-              if (_ready)
-                IgnorePointer(
-                  child: CustomPaint(
-                    painter: _CircleProgressPainter(progress: _progress),
-                  ),
-                ),
-              if (_ready && !_playing)
-                const Center(
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white70,
-                    size: 44,
-                  ),
-                ),
-              if (_ready)
-                Positioned(
-                  left: size * 0.2,
-                  right: size * 0.2,
-                  bottom: 8,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onHorizontalDragUpdate: (d) {
-                      final box = context.findRenderObject() as RenderBox?;
-                      if (box == null) return;
-                      final local = box.globalToLocal(d.globalPosition);
-                      final left = size * 0.2;
-                      final width = size * 0.6;
-                      final fraction =
-                          ((local.dx - left) / width).clamp(0.0, 1.0);
-                      _seekFraction(fraction);
-                    },
-                    onTapDown: (d) {
-                      final width = size * 0.6;
-                      final fraction =
-                          (d.localPosition.dx / width).clamp(0.0, 1.0);
-                      _seekFraction(fraction);
-                    },
-                    child: SizedBox(
-                      height: 16,
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: FractionallySizedBox(
-                              widthFactor: _progress.clamp(0.0, 1.0),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white70,
-                                  borderRadius: BorderRadius.circular(99),
-                                ),
-                              ),
-                            ),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (d) {
+          final frac = _fractionFromLocal(d.localPosition, size);
+          if (frac != null) {
+            // Tap on ring = seek + stay paused.
+            _seekFraction(frac);
+          } else {
+            _toggle();
+          }
+        },
+        onPanStart: (d) => _onSeekStart(d.localPosition, size),
+        onPanUpdate: (d) => _onSeekUpdate(d.localPosition, size),
+        onPanEnd: (_) => _onSeekEnd(),
+        onPanCancel: () => _onSeekEnd(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipOval(
+              child: ColoredBox(
+                color: Colors.black,
+                child: _ready && _controller != null
+                    ? Transform.scale(
+                        scale: 0.82,
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(
+                            width: _controller!.value.size.width,
+                            height: _controller!.value.size.height,
+                            child: VideoPlayer(_controller!),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
+                      )
+                    : const Center(child: MurkotLoader(size: 28)),
+              ),
+            ),
+            if (_ready)
+              CustomPaint(
+                painter: _CircleProgressPainter(
+                  progress: _progress,
+                  active: _seeking || !_playing,
                 ),
-            ],
-          ),
+              ),
+            if (_ready && !_playing)
+              const Center(
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white70,
+                  size: 44,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -242,17 +251,19 @@ class _CircleVideoPlayerState extends State<CircleVideoPlayer> {
 }
 
 class _CircleProgressPainter extends CustomPainter {
-  _CircleProgressPainter({required this.progress});
+  _CircleProgressPainter({required this.progress, this.active = false});
 
   final double progress;
+  final bool active;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = 2.5;
+    final stroke = active ? 4.0 : 3.0;
+    final inset = stroke + 1;
     final rect =
-        Offset(stroke, stroke) & Size(size.width - stroke * 2, size.height - stroke * 2);
+        Offset(inset, inset) & Size(size.width - inset * 2, size.height - inset * 2);
     final bg = Paint()
-      ..color = Colors.white24
+      ..color = Colors.white38
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke;
     final fg = Paint()
@@ -260,11 +271,26 @@ class _CircleProgressPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeWidth = stroke;
-    canvas.drawArc(rect, -1.5708, 6.2832, false, bg);
-    canvas.drawArc(rect, -1.5708, 6.2832 * progress.clamp(0.0, 1.0), false, fg);
+    canvas.drawArc(rect, -math.pi / 2, math.pi * 2, false, bg);
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      math.pi * 2 * progress.clamp(0.0, 1.0),
+      false,
+      fg,
+    );
+    // Scrub knob on the ring.
+    final a = -math.pi / 2 + math.pi * 2 * progress.clamp(0.0, 1.0);
+    final cx = size.width / 2 + math.cos(a) * (size.width / 2 - inset);
+    final cy = size.height / 2 + math.sin(a) * (size.height / 2 - inset);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      active ? 7 : 5,
+      Paint()..color = Colors.white,
+    );
   }
 
   @override
   bool shouldRepaint(covariant _CircleProgressPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+      oldDelegate.progress != progress || oldDelegate.active != active;
 }

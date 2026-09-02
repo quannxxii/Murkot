@@ -495,9 +495,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final hasFileWallpaper = localPathExists(customPath);
         final hasCustomWallpaper = isNetworkWallpaper || hasFileWallpaper;
 
-        // Avatar size: square on all phones (never oval).
+        // Avatar ~2× larger on phones; stay circular.
         final avatarRadius = isNarrow
-            ? (screenWidth * 0.18).clamp(64.0, 88.0)
+            ? (screenWidth * 0.36).clamp(120.0, 176.0)
             : (screenWidth * 0.12).clamp(88.0, 120.0);
         final avatarSize = avatarRadius * 2;
         final topSafe = MediaQuery.paddingOf(context).top;
@@ -523,284 +523,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ? Image.network(customPath, fit: BoxFit.cover)
                       : Image.file(File(customPath), fit: BoxFit.cover)),
             ),
+            // Solid surface only BELOW the wallpaper — no dark veil over it.
+            Positioned(
+              top: wallpaperHeight,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ColoredBox(color: theme.colorScheme.surface),
+            ),
             SafeArea(
               bottom: false,
               child: Align(
                 alignment: Alignment.topCenter,
-                child: Container(
+                child: SizedBox(
                   width: contentWidth,
-                  margin: EdgeInsets.only(top: isNarrow ? 0 : 12),
-                  child: Material(
-                    color: theme.colorScheme.surface.withValues(
-                      alpha: isNarrow ? 0.92 : 1,
-                    ),
-                    borderRadius: isNarrow
-                        ? const BorderRadius.vertical(top: Radius.circular(0))
-                        : const BorderRadius.vertical(top: Radius.circular(20)),
-                    clipBehavior: Clip.antiAlias,
-                    elevation: isNarrow ? 0 : 6,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: SingleChildScrollView(
-                            padding: EdgeInsets.fromLTRB(
-                              isNarrow ? 16 : 20,
-                              12,
-                              isNarrow ? 16 : 20,
-                              20,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: EdgeInsets.fromLTRB(
+                            isNarrow ? 16 : 20,
+                            isNarrow ? 4 : 12,
+                            isNarrow ? 16 : 20,
+                            20,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    MurkotFloatingTooltip(
+                                      message: strings.copyProfileLink,
+                                      child: IconButton(
+                                        icon: const Icon(Icons.link),
+                                        tooltip: '',
+                                        onPressed: _copyProfileLink,
+                                      ),
+                                    ),
+                                    if (isMurkotAdminLogin(current.login))
                                       MurkotFloatingTooltip(
-                                        message: strings.copyProfileLink,
+                                        message: strings.adminTitle,
                                         child: IconButton(
-                                          icon: const Icon(Icons.link),
+                                          icon: const Icon(Icons
+                                              .admin_panel_settings_outlined),
                                           tooltip: '',
-                                          onPressed: _copyProfileLink,
-                                        ),
-                                      ),
-                                      if (isMurkotAdminLogin(current.login))
-                                        MurkotFloatingTooltip(
-                                          message: strings.adminTitle,
-                                          child: IconButton(
-                                            icon: const Icon(Icons
-                                                .admin_panel_settings_outlined),
-                                            tooltip: '',
-                                            onPressed: () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute<void>(
-                                                  builder: (_) =>
-                                                      AdminPanelScreen(
-                                                    currentLogin:
-                                                        current.login,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      MurkotFloatingTooltip(
-                                        message: strings.settingsTitle,
-                                        child: IconButton(
-                                          icon: const Icon(
-                                              Icons.settings_outlined),
-                                          tooltip: '',
-                                          onPressed: _openSettings,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                _AvatarSection(
-                                  avatarPath: current.avatarPath,
-                                  avatarEmoji: current.avatarEmoji,
-                                  login: current.login,
-                                  nickColorId: current.nickColorId,
-                                  frame: current.avatarFrame,
-                                  showPlusBadge:
-                                      current.isPlus || _billing.isPlus,
-                                  devStatus: current.devStatus,
-                                  isLoading: _isUpdatingAvatar,
-                                  hint: strings.changeAvatarHint,
-                                  onTap: _isUpdatingAvatar
-                                      ? null
-                                      : _showAvatarOptions,
-                                  onLoginTap: _changeLogin,
-                                  forceRadius: avatarRadius,
-                                ),
-                                if (!widget.settingsService.profileNudgeDismissed &&
-                                    _profileFillScore(current) < 5) ...[
-                                  const SizedBox(height: 20),
-                                  _ProfileNudge(
-                                    onDismiss: widget.settingsService
-                                        .dismissProfileNudge,
-                                  ),
-                                ],
-                                const SizedBox(height: 24),
-                                _ProfileField(
-                                  icon: Icons.edit_outlined,
-                                  label: strings.status,
-                                  child: TextField(
-                                    controller: _statusController,
-                                    focusNode: _statusFocusNode,
-                                    maxLength: 120,
-                                    decoration: InputDecoration(
-                                      hintText: strings.statusHint,
-                                      counterText: '',
-                                      suffixIcon: _isSavingStatus
-                                          ? const Padding(
-                                              padding: EdgeInsets.all(12),
-                                              child: SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child: MurkotLoaderCompact(),
-                                              ),
-                                            )
-                                          : IconButton(
-                                              icon: const Icon(Icons.check),
-                                              onPressed: _saveStatus,
-                                            ),
-                                    ),
-                                    onSubmitted: (_) {
-                                      _saveStatus();
-                                      _statusFocusNode.unfocus();
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _ProfileField(
-                                  icon: Icons.email_outlined,
-                                  label: strings.email,
-                                  child: Column(
-                                    children: [
-                                      _ReadOnlyField(text: current.email),
-                                      const SizedBox(height: 8),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton(
-                                          onPressed: _changeEmail,
-                                          child: Text(strings.changeEmail),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _ProfileField(
-                                  icon: Icons.cake_outlined,
-                                  label: strings.birthday,
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(
-                                      current.birthday != null
-                                          ? '${formatBirthday(current.birthday!)} (${strings.ageYears(calculateAge(current.birthday!))})'
-                                          : strings.notSet,
-                                    ),
-                                    trailing: const Icon(Icons.chevron_right),
-                                    onTap: _pickBirthday,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      side: BorderSide(color: Colors.grey.shade300),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _ProfileField(
-                                  icon: Icons.work_outline,
-                                  label: strings.devCardTitle,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      DevCardView(user: current),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton.icon(
-                                          onPressed: _editDevCard,
-                                          icon: const Icon(Icons.edit_outlined, size: 16),
-                                          label: Text(strings.devCardEdit),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                PlusFeaturesPanel(
-                                  authService: widget.authService,
-                                  billing: _billing,
-                                  user: current,
-                                ),
-                                const SizedBox(height: 12),
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const OfferScreen(),
-                                    ),
-                                  ),
-                                  child: Text(strings.isRu
-                                      ? 'Оферта и реквизиты'
-                                      : 'Offer & legal'),
-                                ),
-                                const SizedBox(height: 12),
-                                Card(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(14),
-                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Row(children: [Icon(Icons.business_center, color: theme.colorScheme.primary), const SizedBox(width: 8), Text('Кабинет HR — 24 999 ₽/мес', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))]),
-                                      const SizedBox(height: 6),
-                                      Text('Безлимит поиск, бренд-профиль, Smart-подбор ИИ, рассылка до 20 кандидатов', style: theme.textTheme.bodySmall),
-                                      const SizedBox(height: 10),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: [
-                                          if (!_billing.hasHrOffice)
-                                            FilledButton.tonalIcon(
-                                              onPressed: _buyHr,
-                                              icon: const Icon(Icons.workspace_premium_outlined, size: 18),
-                                              label: Text(strings.isRu ? 'Оплатить' : 'Pay'),
-                                            ),
-                                          OutlinedButton.icon(
-                                            onPressed: () => Navigator.of(context).push(
+                                          onPressed: () {
+                                            Navigator.of(context).push(
                                               MaterialPageRoute<void>(
-                                                builder: (_) => HrOfficeScreen(billingService: _billing),
+                                                builder: (_) =>
+                                                    AdminPanelScreen(
+                                                  currentLogin: current.login,
+                                                ),
                                               ),
-                                            ),
-                                            icon: const Icon(Icons.workspace_premium_outlined, size: 18),
-                                            label: Text(strings.isRu ? 'Открыть кабинет' : 'Open office'),
-                                          ),
-                                        ],
+                                            );
+                                          },
+                                        ),
                                       ),
-                                    ]),
-                                  ),
+                                    MurkotFloatingTooltip(
+                                      message: strings.settingsTitle,
+                                      child: IconButton(
+                                        icon: const Icon(
+                                            Icons.settings_outlined),
+                                        tooltip: '',
+                                        onPressed: _openSettings,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 16),
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.wallpaper, color: theme.colorScheme.primary),
-                                  title: Text(strings.chooseWallpaper),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: _pickWallpaper,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              _AvatarSection(
+                                avatarPath: current.avatarPath,
+                                avatarEmoji: current.avatarEmoji,
+                                login: current.login,
+                                nickColorId: current.nickColorId,
+                                frame: current.avatarFrame,
+                                showPlusBadge:
+                                    current.isPlus || _billing.isPlus,
+                                devStatus: current.devStatus,
+                                isLoading: _isUpdatingAvatar,
+                                hint: strings.changeAvatarHint,
+                                onTap: _isUpdatingAvatar
+                                    ? null
+                                    : _showAvatarOptions,
+                                onLoginTap: _changeLogin,
+                                forceRadius: avatarRadius,
+                              ),
+                              // Fields sit on surface; keep a card only on wide screens.
+                              if (!isNarrow) const SizedBox(height: 8),
+                              if (!isNarrow)
+                                Material(
+                                  elevation: 6,
+                                  borderRadius: BorderRadius.circular(20),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: _profileFields(
+                                      context,
+                                      strings,
+                                      theme,
+                                      current,
+                                    ),
                                   ),
+                                )
+                              else
+                                _profileFields(
+                                  context,
+                                  strings,
+                                  theme,
+                                  current,
                                 ),
-                                const SizedBox(height: 24),
-                                OutlinedButton.icon(
-                                  onPressed: _logout,
-                                  icon: Icon(Icons.logout, color: theme.colorScheme.error),
-                                  label: Text(strings.logout,
-                                      style: TextStyle(color: theme.colorScheme.error)),
-                                  style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(double.infinity, 52),
-                                    side: BorderSide(
-                                        color: theme.colorScheme.error.withValues(alpha: 0.5)),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed: _deleteAccount,
-                                  icon: Icon(Icons.delete_forever, color: theme.colorScheme.error),
-                                  label: Text(strings.deleteAccount,
-                                      style: TextStyle(color: theme.colorScheme.error)),
-                                  style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(double.infinity, 52),
-                                    side: BorderSide(
-                                        color: theme.colorScheme.error.withValues(alpha: 0.5)),
-                                  ),
-                                ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -808,6 +647,219 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _profileFields(
+    BuildContext context,
+    AppStrings strings,
+    ThemeData theme,
+    User current,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!widget.settingsService.profileNudgeDismissed &&
+            _profileFillScore(current) < 5) ...[
+          const SizedBox(height: 20),
+          _ProfileNudge(
+            onDismiss: widget.settingsService.dismissProfileNudge,
+          ),
+        ],
+        const SizedBox(height: 24),
+        _ProfileField(
+          icon: Icons.edit_outlined,
+          label: strings.status,
+          child: TextField(
+            controller: _statusController,
+            focusNode: _statusFocusNode,
+            maxLength: 120,
+            decoration: InputDecoration(
+              hintText: strings.statusHint,
+              counterText: '',
+              suffixIcon: _isSavingStatus
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: MurkotLoaderCompact(),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.check),
+                      onPressed: _saveStatus,
+                    ),
+            ),
+            onSubmitted: (_) {
+              _saveStatus();
+              _statusFocusNode.unfocus();
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        _ProfileField(
+          icon: Icons.email_outlined,
+          label: strings.email,
+          child: Column(
+            children: [
+              _ReadOnlyField(text: current.email),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _changeEmail,
+                  child: Text(strings.changeEmail),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _ProfileField(
+          icon: Icons.cake_outlined,
+          label: strings.birthday,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              current.birthday != null
+                  ? '${formatBirthday(current.birthday!)} (${strings.ageYears(calculateAge(current.birthday!))})'
+                  : strings.notSet,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _pickBirthday,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _ProfileField(
+          icon: Icons.work_outline,
+          label: strings.devCardTitle,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DevCardView(user: current),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _editDevCard,
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: Text(strings.devCardEdit),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        PlusFeaturesPanel(
+          authService: widget.authService,
+          billing: _billing,
+          user: current,
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const OfferScreen(),
+            ),
+          ),
+          child: Text(strings.isRu ? 'Оферта и реквизиты' : 'Offer & legal'),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.business_center,
+                        color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Кабинет HR — 24 999 ₽/мес',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Безлимит поиск, бренд-профиль, Smart-подбор ИИ, рассылка до 20 кандидатов',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (!_billing.hasHrOffice)
+                      FilledButton.tonalIcon(
+                        onPressed: _buyHr,
+                        icon: const Icon(Icons.workspace_premium_outlined,
+                            size: 18),
+                        label: Text(strings.isRu ? 'Оплатить' : 'Pay'),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              HrOfficeScreen(billingService: _billing),
+                        ),
+                      ),
+                      icon: const Icon(Icons.workspace_premium_outlined,
+                          size: 18),
+                      label: Text(strings.isRu
+                          ? 'Открыть кабинет'
+                          : 'Open office'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.wallpaper, color: theme.colorScheme.primary),
+          title: Text(strings.chooseWallpaper),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _pickWallpaper,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade300),
+          ),
+        ),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: _logout,
+          icon: Icon(Icons.logout, color: theme.colorScheme.error),
+          label: Text(strings.logout,
+              style: TextStyle(color: theme.colorScheme.error)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 52),
+            side: BorderSide(
+                color: theme.colorScheme.error.withValues(alpha: 0.5)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _deleteAccount,
+          icon: Icon(Icons.delete_forever, color: theme.colorScheme.error),
+          label: Text(strings.deleteAccount,
+              style: TextStyle(color: theme.colorScheme.error)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 52),
+            side: BorderSide(
+                color: theme.colorScheme.error.withValues(alpha: 0.5)),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -929,7 +981,7 @@ class _AvatarSection extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     final radius = forceRadius ??
         (width < 720
-            ? (width * 0.18).clamp(64.0, 88.0)
+            ? (width * 0.36).clamp(120.0, 176.0)
             : (width * 0.12).clamp(88.0, 120.0));
     final nickColor = nickColorFromId(nickColorId);
     final size = radius * 2;

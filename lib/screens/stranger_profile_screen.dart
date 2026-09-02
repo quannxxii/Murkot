@@ -596,7 +596,7 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
   ) {
     final isNarrow = MediaQuery.sizeOf(context).width < 720;
     final radius = isNarrow
-        ? (MediaQuery.sizeOf(context).width * 0.18).clamp(64.0, 88.0)
+        ? (MediaQuery.sizeOf(context).width * 0.36).clamp(120.0, 176.0)
         : 72.0;
     final avatarSize = radius * 2;
     final wallpaper = ProfileWallpaper.byId(

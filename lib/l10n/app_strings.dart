@@ -969,7 +969,10 @@ class AppStrings {
   String get loadFailed =>
       isRu ? 'Не удалось загрузить данные' : 'Failed to load data';
   String get loadingMurkot =>
-      isRu ? 'Загрузка Murkot…' : 'Loading Murkot…';
+      isRu ? 'Загрузка…' : 'Loading…';
+  String get platformTagline => isRu
+      ? 'Платформа для поиска работы и единомышленников в IT'
+      : 'A platform to find IT jobs and like-minded people';
   String mediaOf(int index, int total) =>
       isRu ? '$index из $total' : '$index of $total';
   String get serverTimeout => isRu

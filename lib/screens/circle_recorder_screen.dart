@@ -34,8 +34,11 @@ class CircleRecorderScreen extends StatefulWidget {
 
 class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
   CameraController? _camera;
+  List<CameraDescription> _cameras = const [];
+  int _cameraIndex = 0;
   String? _error;
   bool _recording = false;
+  bool _switching = false;
   DateTime? _started;
   Timer? _ticker;
   double _zoom = 1.0;
@@ -48,40 +51,71 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
     _initCamera();
   }
 
-  Future<void> _initCamera() async {
+  Future<void> _initCamera({int? preferIndex}) async {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         setState(() => _error = 'no-camera');
         return;
       }
-      final front = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
-      final controller = CameraController(
-        front,
-        ResolutionPreset.medium,
-        enableAudio: true,
-      );
-      await controller.initialize();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      try {
-        _maxZoom = await controller.getMaxZoomLevel();
-        _zoom = await controller.getMinZoomLevel();
-      } catch (_) {
-        _maxZoom = 4.0;
-      }
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      setState(() => _camera = controller);
+      _cameras = cameras;
+      var index = preferIndex ??
+          cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+      if (index < 0) index = 0;
+      await _openCameraAt(index);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _openCameraAt(int index) async {
+    final old = _camera;
+    _camera = null;
+    await old?.dispose();
+    if (!mounted) return;
+
+    final description = _cameras[index];
+    final controller = CameraController(
+      description,
+      ResolutionPreset.medium,
+      enableAudio: true,
+    );
+    await controller.initialize();
+    if (!mounted) {
+      await controller.dispose();
+      return;
+    }
+    try {
+      _maxZoom = await controller.getMaxZoomLevel();
+      _zoom = await controller.getMinZoomLevel();
+    } catch (_) {
+      _maxZoom = 4.0;
+    }
+    if (!mounted) {
+      await controller.dispose();
+      return;
+    }
+    setState(() {
+      _camera = controller;
+      _cameraIndex = index;
+      _error = null;
+      _switching = false;
+    });
+  }
+
+  Future<void> _flipCamera() async {
+    if (_recording || _switching || _cameras.length < 2) return;
+    setState(() => _switching = true);
+    final next = (_cameraIndex + 1) % _cameras.length;
+    try {
+      await _openCameraAt(next);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _switching = false;
+        });
+      }
     }
   }
 
@@ -290,7 +324,20 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
                     tooltip: 'Отправить',
                   )
                 else
-                  const SizedBox(width: 48),
+                  IconButton(
+                    onPressed: _cameras.length > 1 && !_switching
+                        ? _flipCamera
+                        : null,
+                    icon: Icon(
+                      Icons.cameraswitch_rounded,
+                      color: _cameras.length > 1
+                          ? Colors.white
+                          : Colors.white24,
+                    ),
+                    tooltip: strings.isRu
+                        ? 'Сменить камеру'
+                        : 'Flip camera',
+                  ),
               ],
             ),
           ),

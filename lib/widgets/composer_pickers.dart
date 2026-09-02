@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../data/emoji_categories.dart';
 import '../data/sticker_packs.dart';
 import '../l10n/app_strings.dart';
 import '../services/chat_service.dart';
@@ -14,44 +17,65 @@ Future<void> showEmojiPicker(
     showDragHandle: true,
     isScrollControlled: true,
     builder: (context) {
+      final isRu = context.strings.isRu;
       return DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.62,
         minChildSize: 0.38,
         maxChildSize: 0.96,
         builder: (context, scrollController) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-              child: Column(
-                children: [
-                  Text(
-                    context.strings.emojiPickerTitle,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: GridView.count(
-                      controller: scrollController,
-                      crossAxisCount: 8,
-                      children: [
-                        for (final emoji in kEmojiPalette)
-                          InkWell(
-                            onTap: () {
-                              Navigator.pop(context);
-                              onPick(emoji);
-                            },
-                            child: Center(
-                              child: Text(emoji, style: const TextStyle(fontSize: 28)),
-                            ),
-                          ),
+          return DefaultTabController(
+            length: kEmojiCategories.length,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                child: Column(
+                  children: [
+                    Text(
+                      context.strings.emojiPickerTitle,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      tabs: [
+                        for (final cat in kEmojiCategories)
+                          Tab(text: cat.title(isRu)),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          for (final cat in kEmojiCategories)
+                            GridView.count(
+                              controller: scrollController,
+                              crossAxisCount: 8,
+                              children: [
+                                for (final emoji in cat.emojis)
+                                  InkWell(
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      onPick(emoji);
+                                    },
+                                    child: Center(
+                                      child: Text(
+                                        emoji,
+                                        style: const TextStyle(fontSize: 28),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -189,6 +213,8 @@ class _GifPickerSheetState extends State<_GifPickerSheet> with SingleTickerProvi
   bool _loading = false;
   String? _error;
   late TabController _tabController;
+  int _searchGen = 0;
+  Timer? _debounce;
 
   List<GifHit> get _ownGifs {
     final cs = widget.chatService;
@@ -212,31 +238,42 @@ class _GifPickerSheetState extends State<_GifPickerSheet> with SingleTickerProvi
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _query.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _search() async {
-    if (_loading) return;
+    final gen = ++_searchGen;
+    final q = _query.text;
+    // Instant local catalog — never blocks the UI.
+    final local = searchGifsLocal(q);
+    if (!mounted || gen != _searchGen) return;
     setState(() {
+      _hits = local;
       _loading = true;
       _error = null;
     });
     try {
-      final hits = await searchGifs(_query.text);
-      if (!mounted) return;
+      final hits = await searchGifs(q);
+      if (!mounted || gen != _searchGen) return;
       setState(() {
         _hits = hits;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || gen != _searchGen) return;
       setState(() {
         _error = e.toString();
         _loading = false;
       });
     }
+  }
+
+  void _onQueryChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 280), _search);
   }
 
   @override
@@ -278,6 +315,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> with SingleTickerProvi
                             isDense: true,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                           ),
+                          onChanged: _onQueryChanged,
                           onSubmitted: (_) => _search(),
                         ),
                       ),
@@ -301,14 +339,20 @@ class _GifPickerSheetState extends State<_GifPickerSheet> with SingleTickerProvi
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      // Search tab
-                      _loading
+                      // Search tab — keep local hits visible while network refreshes.
+                      _hits.isEmpty && _loading
                           ? const Center(child: CircularProgressIndicator())
-                          : _error != null
-                              ? Center(child: Text(strings.gifLoadFailed))
-                              : _hits.isEmpty
-                                  ? Center(child: Text(strings.gifLoadFailed))
-                                  : GridView.builder(
+                          : _hits.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    _error != null
+                                        ? strings.gifLoadFailed
+                                        : strings.gifLoadFailed,
+                                  ),
+                                )
+                              : Stack(
+                                  children: [
+                                    GridView.builder(
                                       controller: scrollController,
                                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                         crossAxisCount: 2,
@@ -341,6 +385,15 @@ class _GifPickerSheetState extends State<_GifPickerSheet> with SingleTickerProvi
                                         );
                                       },
                                     ),
+                                    if (_loading)
+                                      const Positioned(
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: LinearProgressIndicator(minHeight: 2),
+                                      ),
+                                  ],
+                                ),
                       // Mine tab
                       Builder(builder: (context) {
                         final own = _ownGifs;
@@ -361,7 +414,7 @@ class _GifPickerSheetState extends State<_GifPickerSheet> with SingleTickerProvi
                           );
                         }
                         return GridView.builder(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             mainAxisSpacing: 8,
                             crossAxisSpacing: 8,

@@ -31,7 +31,7 @@ class SessionBootOverlay extends StatelessWidget {
           ? strings.sessionBootFailedSubtitle
           : slow
               ? strings.sessionBootSlowSubtitle
-              : null,
+              : strings.platformTagline,
       onContinue: (failed || slow) ? onContinue : null,
       onRetry: failed ? onRetry : null,
       continueLabel: strings.continueAnyway,

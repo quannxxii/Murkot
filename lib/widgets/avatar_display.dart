@@ -104,14 +104,18 @@ class AvatarDisplay extends StatelessWidget {
 
     Widget body = face;
     if (frame != AvatarFrameId.none) {
+      // Frame drawn ON TOP of the avatar so decorations stay visible.
       body = SizedBox(
         width: total,
         height: total,
         child: Stack(
           alignment: Alignment.center,
+          clipBehavior: Clip.none,
           children: [
-            _AvatarFrameRing(frame: frame, size: total),
             face,
+            IgnorePointer(
+              child: _AvatarFrameRing(frame: frame, size: total),
+            ),
           ],
         ),
       );
