@@ -11,6 +11,7 @@ import '../l10n/app_strings.dart';
 import '../models/conversation.dart';
 import '../models/media_payload.dart';
 import '../models/message.dart';
+import '../models/profile_wallpaper.dart';
 import '../models/system_payload.dart';
 import '../services/blacklist_service.dart';
 import '../services/chat_service.dart';
@@ -1213,6 +1214,7 @@ class _ChatScreenState extends State<ChatScreen> {
         widget.chatService,
         widget.blacklistService,
         widget.presenceService,
+        widget.settingsService,
       ]),
       builder: (context, _) {
         final updated = widget.chatService.getConversation(_conversation.id);
@@ -1360,6 +1362,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 : null,
             child: Stack(
             children: [
+              // Conversation wallpaper (locally saved per-device).
+              if (() {
+                final wid = widget.settingsService
+                    .getConversationWallpaperId(_conversation.id);
+                return wid != null;
+              }())
+                Positioned.fill(
+                  child: ProfileWallpaperSurface(
+                    wallpaper: ProfileWallpaper.byId(
+                      widget.settingsService
+                          .getConversationWallpaperId(_conversation.id)!,
+                    ),
+                    ornamentSize: 280,
+                    ornamentOpacity: 0.15,
+                  ),
+                ),
               Column(
                 children: [
                   if (pinned.isNotEmpty)

@@ -535,6 +535,9 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () => showCommandPalette(
                     context: context,
                     chatService: chatService,
+                    blacklistService: _blacklistService,
+                    settingsService: widget.settingsService,
+                    currentUserLogin: widget.authService.currentUser?.login,
                   ),
                   icon: const Icon(Icons.search_rounded),
                 ),
@@ -692,6 +695,9 @@ class _MainScreenState extends State<MainScreen> {
               showCommandPalette(
                 context: context,
                 chatService: _chatService!,
+                blacklistService: _blacklistService,
+                settingsService: widget.settingsService,
+                currentUserLogin: widget.authService.currentUser?.login,
               );
               return null;
             },

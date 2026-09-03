@@ -270,13 +270,14 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ),
                               ),
                             ),
-                            Positioned(
-                              top: 10,
-                              right: 10,
-                              child: MurkotThemeSwitch(
-                                settings: widget.settingsService,
-                              ),
-                            ),
+                            // Theme switch temporarily hidden on auth screen.
+                            // Positioned(
+                            //   top: 10,
+                            //   right: 10,
+                            //   child: MurkotThemeSwitch(
+                            //     settings: widget.settingsService,
+                            //   ),
+                            // ),
                           ],
                         ),
                       ),

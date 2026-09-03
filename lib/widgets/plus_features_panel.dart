@@ -32,6 +32,7 @@ class _PlusFeaturesPanelState extends State<PlusFeaturesPanel> {
   List<ProfileVisitor> _views = const [];
   List<ProfileVisitor> _saves = const [];
   bool _loadingInsight = false;
+  bool _openPlus = true;
   bool _openFrame = false;
   bool _openNick = false;
   bool _openViews = false;
@@ -139,191 +140,176 @@ class _PlusFeaturesPanelState extends State<PlusFeaturesPanel> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-            child: Column(
-              children: [
-                ListTile(
-                  dense: true,
-                  leading: Icon(Icons.workspace_premium,
-                      color: theme.colorScheme.primary),
-                  title: Text(
-                    isRu
-                        ? 'Murkot Plus активен${user.plusUntil != null ? ' до ${user.plusUntil!.day}.${user.plusUntil!.month}' : ''}'
-                        : 'Murkot Plus active',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                ExpansionTile(
-                  initiallyExpanded: _openFrame,
-                  onExpansionChanged: (v) => setState(() => _openFrame = v),
-                  title: Text(isRu ? 'Рамка аватара' : 'Avatar frame'),
-                  subtitle: Text(user.avatarFrame.title(isRu)),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final frame in AvatarFrameId.values)
-                            ChoiceChip(
-                              avatar: Icon(frame.icon, size: 16),
-                              label: Text(frame.title(isRu)),
-                              selected: user.avatarFrame == frame,
-                              onSelected: (_) => _setFrame(frame),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                ExpansionTile(
-                  initiallyExpanded: _openNick,
-                  onExpansionChanged: (v) => setState(() => _openNick = v),
-                  title: Text(isRu ? 'Цвет ника' : 'Nick color'),
-                  subtitle: Text(
-                    user.nickColorId == null
-                        ? (isRu ? 'По умолчанию' : 'Default')
-                        : (kNickColorOptions
-                                .where((o) => o.id == user.nickColorId)
-                                .firstOrNull
-                                ?.title(isRu) ??
-                            user.nickColorId!),
-                  ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          ChoiceChip(
-                            label: Text(isRu ? 'По умолчанию' : 'Default'),
-                            selected: user.nickColorId == null,
-                            onSelected: (_) => _setNick(null),
-                          ),
-                          for (final opt in kNickColorOptions)
-                            ChoiceChip(
-                              avatar: CircleAvatar(
-                                backgroundColor: opt.color,
-                                radius: 8,
-                              ),
-                              label: Text(
-                                opt.title(isRu),
-                                style: TextStyle(
-                                  color: user.nickColorId == opt.id
-                                      ? opt.color
-                                      : null,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              selected: user.nickColorId == opt.id,
-                              onSelected: (_) => _setNick(opt.id),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Text(
-                    isRu
-                        ? 'Гиф-аватар: в меню аватара выбери «Галерея» и загрузи .gif'
-                        : 'GIF avatar: open avatar menu → Gallery and pick a .gif',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final untilStr = user.plusUntil != null
+        ? ' · ${isRu ? 'до' : 'until'} ${user.plusUntil!.day}.${user.plusUntil!.month}'
+        : '';
+
+    return Card(
+      child: ExpansionTile(
+        initiallyExpanded: _openPlus,
+        onExpansionChanged: (v) => setState(() => _openPlus = v),
+        leading: Icon(Icons.workspace_premium, color: theme.colorScheme.primary),
+        title: Text(
+          'Murkot Plus$untilStr',
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
+        subtitle: Text(
+          isRu ? 'Рамки, цвет ника, гиф-аватар, аналитика' : 'Frames, nick color, GIF avatar, analytics',
+          style: theme.textTheme.bodySmall,
+        ),
+        children: [
+          ExpansionTile(
+            initiallyExpanded: _openFrame,
+            onExpansionChanged: (v) => setState(() => _openFrame = v),
+            title: Text(isRu ? 'Рамка аватара' : 'Avatar frame'),
+            subtitle: Text(user.avatarFrame.title(isRu)),
             children: [
-              ExpansionTile(
-                initiallyExpanded: _openViews,
-                onExpansionChanged: (v) {
-                  setState(() => _openViews = v);
-                  if (v && _views.isEmpty) _loadInsight();
-                },
-                leading: Icon(Icons.visibility_outlined,
-                    color: theme.colorScheme.primary),
-                title: Text(isRu ? 'Кто смотрел профиль' : 'Profile viewers'),
-                subtitle: Text(
-                  _loadingInsight
-                      ? '…'
-                      : (_views.isEmpty
-                          ? (isRu ? 'Пока никто' : 'Nobody yet')
-                          : '${_views.length}'),
-                ),
-                trailing: IconButton(
-                  onPressed: _loadInsight,
-                  icon: const Icon(Icons.refresh, size: 18),
-                ),
-                children: [
-                  if (_loadingInsight)
-                    const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_views.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: Text(
-                        isRu ? 'Пока никто не заходил' : 'No viewers yet',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.outline),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final frame in AvatarFrameId.values)
+                      ChoiceChip(
+                        avatar: Icon(frame.icon, size: 16),
+                        label: Text(frame.title(isRu)),
+                        selected: user.avatarFrame == frame,
+                        onSelected: (_) => _setFrame(frame),
                       ),
-                    )
-                  else
-                    for (final v in _views.take(12))
-                      _VisitorTile(visitor: v, isRu: isRu),
-                ],
-              ),
-              ExpansionTile(
-                initiallyExpanded: _openSaves,
-                onExpansionChanged: (v) {
-                  setState(() => _openSaves = v);
-                  if (v && _saves.isEmpty) _loadInsight();
-                },
-                leading: Icon(Icons.bookmark_added_outlined,
-                    color: theme.colorScheme.primary),
-                title:
-                    Text(isRu ? 'Кто сохранял контакты' : 'Contact saves'),
-                subtitle: Text(
-                  _saves.isEmpty
-                      ? (isRu ? 'Пока пусто' : 'Nothing yet')
-                      : '${_saves.length}',
+                  ],
                 ),
-                children: [
-                  if (_saves.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: Text(
-                        isRu ? 'Пока пусто' : 'Nothing yet',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.outline),
-                      ),
-                    )
-                  else
-                    for (final v in _saves.take(12))
-                      _VisitorTile(visitor: v, isRu: isRu, showSource: true),
-                ],
               ),
             ],
           ),
-        ),
-      ],
+          ExpansionTile(
+            initiallyExpanded: _openNick,
+            onExpansionChanged: (v) => setState(() => _openNick = v),
+            title: Text(isRu ? 'Цвет ника' : 'Nick color'),
+            subtitle: Text(
+              user.nickColorId == null
+                  ? (isRu ? 'По умолчанию' : 'Default')
+                  : (kNickColorOptions
+                          .where((o) => o.id == user.nickColorId)
+                          .firstOrNull
+                          ?.title(isRu) ??
+                      user.nickColorId!),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: Text(isRu ? 'По умолчанию' : 'Default'),
+                      selected: user.nickColorId == null,
+                      onSelected: (_) => _setNick(null),
+                    ),
+                    for (final opt in kNickColorOptions)
+                      ChoiceChip(
+                        avatar: CircleAvatar(
+                          backgroundColor: opt.color,
+                          radius: 8,
+                        ),
+                        label: Text(
+                          opt.title(isRu),
+                          style: TextStyle(
+                            color: user.nickColorId == opt.id ? opt.color : null,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        selected: user.nickColorId == opt.id,
+                        onSelected: (_) => _setNick(opt.id),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          ExpansionTile(
+            initiallyExpanded: _openViews,
+            onExpansionChanged: (v) {
+              setState(() => _openViews = v);
+              if (v && _views.isEmpty) _loadInsight();
+            },
+            leading: Icon(Icons.visibility_outlined,
+                color: theme.colorScheme.primary),
+            title: Text(isRu ? 'Кто смотрел профиль' : 'Profile viewers'),
+            subtitle: Text(
+              _loadingInsight
+                  ? '…'
+                  : (_views.isEmpty
+                      ? (isRu ? 'Пока никто' : 'Nobody yet')
+                      : '${_views.length}'),
+            ),
+            trailing: IconButton(
+              onPressed: _loadInsight,
+              icon: const Icon(Icons.refresh, size: 18),
+            ),
+            children: [
+              if (_loadingInsight)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_views.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    isRu ? 'Пока никто не заходил' : 'No viewers yet',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.outline),
+                  ),
+                )
+              else
+                for (final v in _views.take(12))
+                  _VisitorTile(visitor: v, isRu: isRu),
+            ],
+          ),
+          ExpansionTile(
+            initiallyExpanded: _openSaves,
+            onExpansionChanged: (v) {
+              setState(() => _openSaves = v);
+              if (v && _saves.isEmpty) _loadInsight();
+            },
+            leading: Icon(Icons.bookmark_added_outlined,
+                color: theme.colorScheme.primary),
+            title: Text(isRu ? 'Кто сохранял контакты' : 'Contact saves'),
+            subtitle: Text(
+              _saves.isEmpty
+                  ? (isRu ? 'Пока пусто' : 'Nothing yet')
+                  : '${_saves.length}',
+            ),
+            children: [
+              if (_saves.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    isRu ? 'Пока пусто' : 'Nothing yet',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.outline),
+                  ),
+                )
+              else
+                for (final v in _saves.take(12))
+                  _VisitorTile(visitor: v, isRu: isRu, showSource: true),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              isRu
+                  ? 'Гиф-аватар: в меню аватара выбери «Галерея» и загрузи .gif'
+                  : 'GIF avatar: open avatar menu → Gallery and pick a .gif',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

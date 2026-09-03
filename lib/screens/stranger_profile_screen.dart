@@ -243,6 +243,104 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
     }
   }
 
+  Future<void> _pickConversationWallpaper(
+      SettingsService settingsService) async {
+    final strings = context.strings;
+    final currentId =
+        settingsService.getConversationWallpaperId(_conversation.id);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(strings.chooseWallpaper,
+                  style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  // "No wallpaper" option.
+                  GestureDetector(
+                    onTap: () async {
+                      await settingsService.setConversationWallpaperId(
+                          _conversation.id, null);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: currentId == null
+                                  ? Theme.of(ctx).colorScheme.primary
+                                  : Colors.grey.shade300,
+                              width: currentId == null ? 3 : 1,
+                            ),
+                            color: Theme.of(ctx)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                          ),
+                          child: const Icon(Icons.do_not_disturb_alt_outlined),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(strings.isRu ? 'Нет' : 'None',
+                            style: const TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  for (final wallpaper in ProfileWallpaper.presets)
+                    GestureDetector(
+                      onTap: () async {
+                        await settingsService.setConversationWallpaperId(
+                            _conversation.id, wallpaper.id);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: wallpaper.id == currentId
+                                  ? Border.all(
+                                      color:
+                                          Theme.of(ctx).colorScheme.primary,
+                                      width: 3)
+                                  : null,
+                            ),
+                            child: ProfileWallpaperSurface(
+                              wallpaper: wallpaper,
+                              borderRadius: BorderRadius.circular(12),
+                              ornamentSize: 40,
+                              ornamentOpacity: 0.55,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(wallpaper.name,
+                              style: const TextStyle(fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _rename() async {
     final strings = context.strings;
     final name = await showTextInputDialog(
@@ -553,6 +651,12 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
                       onPressed: _manageMembers,
                     ),
                   ],
+                  if (!_isDirect && widget.settingsService != null)
+                    _ProfileAction(
+                      icon: Icons.wallpaper,
+                      label: strings.chooseWallpaper,
+                      onPressed: () => _pickConversationWallpaper(widget.settingsService!),
+                    ),
                   if (_isGroup && !_conversation.isAdmin)
                     _ProfileAction(
                       icon: Icons.people_outline,

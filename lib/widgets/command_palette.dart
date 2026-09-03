@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 
 import '../config/brand_theme.dart';
 import '../l10n/app_strings.dart';
+import '../services/blacklist_service.dart';
 import '../services/chat_service.dart';
+import '../services/settings_service.dart';
 import '../utils/board_tab_bus.dart';
 import '../utils/main_tab_bus.dart';
+import '../screens/stranger_profile_screen.dart';
 import '../screens/user_search_sheet.dart';
 
 class CommandPaletteAction {
@@ -29,6 +32,9 @@ class CommandPaletteAction {
 Future<void> showCommandPalette({
   required BuildContext context,
   required ChatService chatService,
+  BlacklistService? blacklistService,
+  SettingsService? settingsService,
+  String? currentUserLogin,
 }) {
   return showGeneralDialog<void>(
     context: context,
@@ -37,7 +43,12 @@ Future<void> showCommandPalette({
     barrierColor: Colors.black54,
     transitionDuration: const Duration(milliseconds: 160),
     pageBuilder: (context, anim, secondary) {
-      return CommandPaletteDialog(chatService: chatService);
+      return CommandPaletteDialog(
+        chatService: chatService,
+        blacklistService: blacklistService,
+        settingsService: settingsService,
+        currentUserLogin: currentUserLogin,
+      );
     },
     transitionBuilder: (context, anim, secondary, child) {
       final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
@@ -53,9 +64,18 @@ Future<void> showCommandPalette({
 }
 
 class CommandPaletteDialog extends StatefulWidget {
-  const CommandPaletteDialog({super.key, required this.chatService});
+  const CommandPaletteDialog({
+    super.key,
+    required this.chatService,
+    this.blacklistService,
+    this.settingsService,
+    this.currentUserLogin,
+  });
 
   final ChatService chatService;
+  final BlacklistService? blacklistService;
+  final SettingsService? settingsService;
+  final String? currentUserLogin;
 
   @override
   State<CommandPaletteDialog> createState() => _CommandPaletteDialogState();
@@ -88,10 +108,29 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
           keywords: const ['people', 'user', 'поиск', 'люди'],
           run: (ctx) async {
             Navigator.pop(ctx);
-            await showUserSearchSheet(
+            final user = await showUserSearchSheet(
               context: hostContext,
               chatService: widget.chatService,
             );
+            if (user == null) return;
+            try {
+              final conversation =
+                  await widget.chatService.openDirectChat(user);
+              if (widget.blacklistService != null &&
+                  widget.settingsService != null) {
+                await navigator.push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => StrangerProfileScreen(
+                      conversation: conversation,
+                      chatService: widget.chatService,
+                      blacklistService: widget.blacklistService!,
+                      currentUserLogin: widget.currentUserLogin ?? '',
+                      settingsService: widget.settingsService,
+                    ),
+                  ),
+                );
+              }
+            } catch (_) {}
           },
         ),
         CommandPaletteAction(

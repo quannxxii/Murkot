@@ -192,4 +192,24 @@ class SettingsService extends ChangeNotifier {
     final map = jsonDecode(raw) as Map<String, dynamic>;
     _personalization = map.map((k, v) => MapEntry(k, v as String));
   }
+
+  // ── Conversation wallpaper (local, per-device) ────────────────────────────
+
+  static String _convWallpaperKey(String conversationId) =>
+      'conv_wallpaper_$conversationId';
+
+  /// Returns the preset wallpaper id for a conversation, or null (= default).
+  String? getConversationWallpaperId(String conversationId) =>
+      _prefs.getString(_convWallpaperKey(conversationId));
+
+  Future<void> setConversationWallpaperId(
+      String conversationId, String? wallpaperId) async {
+    final key = _convWallpaperKey(conversationId);
+    if (wallpaperId == null) {
+      await _prefs.remove(key);
+    } else {
+      await _prefs.setString(key, wallpaperId);
+    }
+    notifyListeners();
+  }
 }
