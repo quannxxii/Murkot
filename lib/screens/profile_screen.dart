@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -500,151 +501,202 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ? (screenWidth * 0.36).clamp(120.0, 176.0)
             : (screenWidth * 0.12).clamp(88.0, 120.0);
         final avatarSize = avatarRadius * 2;
-        final topSafe = MediaQuery.paddingOf(context).top;
-        final actionsPad = 48.0;
-        // Wallpaper from top down to 25% of avatar height below avatar bottom.
-        final wallpaperHeight =
-            topSafe + actionsPad + avatarSize + avatarSize * 0.25;
+        // Wallpaper tall enough that avatar sits in its visual center.
+        final wallpaperHeight = math.max(
+          avatarSize * 1.55,
+          MediaQuery.sizeOf(context).height * 0.34,
+        );
 
-        return Stack(
-          children: [
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: wallpaperHeight,
-              child: customPath == null || !hasCustomWallpaper
-                  ? ProfileWallpaperSurface(
-                      wallpaper: wallpaper,
-                      ornamentSize: 220,
-                      ornamentOpacity: 0.28,
-                    )
-                  : (isNetworkWallpaper
-                      ? Image.network(customPath, fit: BoxFit.cover)
-                      : Image.file(File(customPath), fit: BoxFit.cover)),
-            ),
-            // Solid surface only BELOW the wallpaper — no dark veil over it.
-            Positioned(
-              top: wallpaperHeight,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ColoredBox(color: theme.colorScheme.surface),
-            ),
-            SafeArea(
-              bottom: false,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: SizedBox(
-                  width: contentWidth,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(
-                            isNarrow ? 16 : 20,
-                            isNarrow ? 4 : 12,
-                            isNarrow ? 16 : 20,
-                            20,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: contentWidth,
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: wallpaperHeight,
+                    width: double.infinity,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: customPath == null || !hasCustomWallpaper
+                              ? ProfileWallpaperSurface(
+                                  wallpaper: wallpaper,
+                                  ornamentSize: 220,
+                                  ornamentOpacity: 0.28,
+                                )
+                              : (isNetworkWallpaper
+                                  ? Image.network(customPath, fit: BoxFit.cover)
+                                  : Image.file(File(customPath),
+                                      fit: BoxFit.cover)),
+                        ),
+                        // Actions over wallpaper.
+                        Positioned(
+                          top: MediaQuery.paddingOf(context).top + 4,
+                          right: 8,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Align(
-                                alignment: Alignment.centerRight,
+                              MurkotFloatingTooltip(
+                                message: strings.copyProfileLink,
+                                child: IconButton(
+                                  icon: const Icon(Icons.link),
+                                  tooltip: '',
+                                  onPressed: _copyProfileLink,
+                                ),
+                              ),
+                              if (isMurkotAdminLogin(current.login))
+                                MurkotFloatingTooltip(
+                                  message: strings.adminTitle,
+                                  child: IconButton(
+                                    icon: const Icon(
+                                        Icons.admin_panel_settings_outlined),
+                                    tooltip: '',
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => AdminPanelScreen(
+                                            currentLogin: current.login,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              MurkotFloatingTooltip(
+                                message: strings.settingsTitle,
+                                child: IconButton(
+                                  icon: const Icon(Icons.settings_outlined),
+                                  tooltip: '',
+                                  onPressed: _openSettings,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Avatar centered in wallpaper.
+                        Positioned(
+                          top: (wallpaperHeight - avatarSize) / 2,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: _AvatarSection(
+                              avatarPath: current.avatarPath,
+                              avatarEmoji: current.avatarEmoji,
+                              login: current.login,
+                              nickColorId: current.nickColorId,
+                              frame: current.avatarFrame,
+                              showPlusBadge:
+                                  current.isPlus || _billing.isPlus,
+                              devStatus: current.devStatus,
+                              isLoading: _isUpdatingAvatar,
+                              hint: strings.changeAvatarHint,
+                              onTap: _isUpdatingAvatar
+                                  ? null
+                                  : _showAvatarOptions,
+                              onLoginTap: _changeLogin,
+                              forceRadius: avatarRadius,
+                              compact: true,
+                            ),
+                          ),
+                        ),
+                        // Login sits under the centered avatar.
+                        Positioned(
+                          top: (wallpaperHeight - avatarSize) / 2 +
+                              avatarSize +
+                              8,
+                          left: 16,
+                          right: 16,
+                          child: Column(
+                            children: [
+                              InkWell(
+                                onTap: _changeLogin,
                                 child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    MurkotFloatingTooltip(
-                                      message: strings.copyProfileLink,
-                                      child: IconButton(
-                                        icon: const Icon(Icons.link),
-                                        tooltip: '',
-                                        onPressed: _copyProfileLink,
+                                    Text(
+                                      current.login,
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: nickColorFromId(
+                                            current.nickColorId),
                                       ),
                                     ),
-                                    if (isMurkotAdminLogin(current.login))
-                                      MurkotFloatingTooltip(
-                                        message: strings.adminTitle,
-                                        child: IconButton(
-                                          icon: const Icon(Icons
-                                              .admin_panel_settings_outlined),
-                                          tooltip: '',
-                                          onPressed: () {
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute<void>(
-                                                builder: (_) =>
-                                                    AdminPanelScreen(
-                                                  currentLogin: current.login,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    MurkotFloatingTooltip(
-                                      message: strings.settingsTitle,
-                                      child: IconButton(
-                                        icon: const Icon(
-                                            Icons.settings_outlined),
-                                        tooltip: '',
-                                        onPressed: _openSettings,
-                                      ),
-                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.edit_outlined,
+                                        size: 16,
+                                        color: theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.7)),
                                   ],
                                 ),
                               ),
-                              _AvatarSection(
-                                avatarPath: current.avatarPath,
-                                avatarEmoji: current.avatarEmoji,
-                                login: current.login,
-                                nickColorId: current.nickColorId,
-                                frame: current.avatarFrame,
-                                showPlusBadge:
-                                    current.isPlus || _billing.isPlus,
-                                devStatus: current.devStatus,
-                                isLoading: _isUpdatingAvatar,
-                                hint: strings.changeAvatarHint,
-                                onTap: _isUpdatingAvatar
-                                    ? null
-                                    : _showAvatarOptions,
-                                onLoginTap: _changeLogin,
-                                forceRadius: avatarRadius,
-                              ),
-                              // Fields sit on surface; keep a card only on wide screens.
-                              if (!isNarrow) const SizedBox(height: 8),
-                              if (!isNarrow)
-                                Material(
-                                  elevation: 6,
-                                  borderRadius: BorderRadius.circular(20),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: _profileFields(
-                                      context,
-                                      strings,
-                                      theme,
-                                      current,
-                                    ),
-                                  ),
-                                )
-                              else
-                                _profileFields(
+                              if (current.devStatus != DevStatus.none) ...[
+                                const SizedBox(height: 8),
+                                DevStatusBadge(
+                                    status: current.devStatus, large: true),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: ColoredBox(
+                    color: theme.colorScheme.surface,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isNarrow ? 16 : 20,
+                        16,
+                        isNarrow ? 16 : 20,
+                        20 + MediaQuery.paddingOf(context).bottom,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            strings.changeAvatarHint,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (!isNarrow)
+                            Material(
+                              elevation: 6,
+                              borderRadius: BorderRadius.circular(20),
+                              clipBehavior: Clip.antiAlias,
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: _profileFields(
                                   context,
                                   strings,
                                   theme,
                                   current,
                                 ),
-                            ],
-                          ),
-                        ),
+                              ),
+                            )
+                          else
+                            _profileFields(
+                              context,
+                              strings,
+                              theme,
+                              current,
+                            ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -960,6 +1012,7 @@ class _AvatarSection extends StatelessWidget {
     required this.onTap,
     required this.onLoginTap,
     this.forceRadius,
+    this.compact = false,
   });
 
   final String? avatarPath;
@@ -974,6 +1027,7 @@ class _AvatarSection extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback onLoginTap;
   final double? forceRadius;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -986,47 +1040,51 @@ class _AvatarSection extends StatelessWidget {
     final nickColor = nickColorFromId(nickColorId);
     final size = radius * 2;
 
+    final avatar = Center(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: AvatarDisplay(
+                  avatarPath: avatarPath,
+                  avatarEmoji: avatarEmoji,
+                  name: login,
+                  radius: radius,
+                  frame: frame,
+                  showPlusBadge: showPlusBadge,
+                ),
+              ),
+            ),
+            if (isLoading)
+              Container(
+                width: size,
+                height: size,
+                decoration: const BoxDecoration(
+                  color: Colors.black45,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: MurkotLoader(size: 36, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (compact) return avatar;
+
     return Column(
       children: [
-        Center(
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Stack(
-              alignment: Alignment.center,
-              clipBehavior: Clip.none,
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onTap,
-                    customBorder: const CircleBorder(),
-                    child: AvatarDisplay(
-                      avatarPath: avatarPath,
-                      avatarEmoji: avatarEmoji,
-                      name: login,
-                      radius: radius,
-                      frame: frame,
-                      showPlusBadge: showPlusBadge,
-                    ),
-                  ),
-                ),
-                if (isLoading)
-                  Container(
-                    width: size,
-                    height: size,
-                    decoration: const BoxDecoration(
-                      color: Colors.black45,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: MurkotLoader(size: 36, color: Colors.white),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
+        avatar,
         const SizedBox(height: 12),
         InkWell(
           onTap: onLoginTap,

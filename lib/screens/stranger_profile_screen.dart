@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -603,9 +605,10 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
       _peerProfile?.profileWallpaperId ?? 'blue',
     );
     final custom = _peerProfile?.customWallpaperPath;
-    final topSafe = MediaQuery.paddingOf(context).top;
-    // Same rule as own profile: wallpaper to 25% of avatar height below bottom.
-    final wallpaperHeight = topSafe + 12 + avatarSize + avatarSize * 0.25;
+    final wallpaperHeight = math.max(
+      avatarSize * 1.55,
+      MediaQuery.sizeOf(context).height * 0.34,
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -617,11 +620,7 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: wallpaperHeight,
+              Positioned.fill(
                 child: custom != null && custom.isNotEmpty
                     ? Image.network(custom, fit: BoxFit.cover)
                     : ProfileWallpaperSurface(
@@ -631,7 +630,7 @@ class _StrangerProfileScreenState extends State<StrangerProfileScreen>
                       ),
               ),
               Positioned(
-                top: wallpaperHeight - avatarSize - avatarSize * 0.25,
+                top: (wallpaperHeight - avatarSize) / 2,
                 left: 0,
                 right: 0,
                 child: Center(

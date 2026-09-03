@@ -38,12 +38,24 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
   int _cameraIndex = 0;
   String? _error;
   bool _recording = false;
+  bool _paused = false;
   bool _switching = false;
-  DateTime? _started;
+  Duration _recorded = Duration.zero;
+  DateTime? _segmentStarted;
   Timer? _ticker;
   double _zoom = 1.0;
   double _maxZoom = 4.0;
   double _baseZoom = 1.0;
+
+  bool get _sessionActive => _recording || _paused;
+
+  Duration get _totalRecorded {
+    var total = _recorded;
+    if (_recording && !_paused && _segmentStarted != null) {
+      total += DateTime.now().difference(_segmentStarted!);
+    }
+    return total;
+  }
 
   @override
   void initState() {
@@ -104,7 +116,7 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
   }
 
   Future<void> _flipCamera() async {
-    if (_recording || _switching || _cameras.length < 2) return;
+    if (_sessionActive || _switching || _cameras.length < 2) return;
     setState(() => _switching = true);
     final next = (_cameraIndex + 1) % _cameras.length;
     try {
@@ -133,10 +145,21 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
     );
   }
 
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (!mounted) return;
+      setState(() {});
+      if (_totalRecorded.inSeconds >= 60) {
+        _stopAndSend();
+      }
+    });
+  }
+
   Future<void> _cancelRecord() async {
     final camera = _camera;
     _ticker?.cancel();
-    if (_recording && camera != null) {
+    if (_sessionActive && camera != null) {
       try {
         await camera.stopVideoRecording();
       } catch (_) {}
@@ -145,45 +168,91 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
     if (Navigator.canPop(context)) Navigator.pop(context);
   }
 
-  Future<void> _sendRecord() async {
-    await _toggleRecord();
+  Future<void> _stopAndSend() async {
+    final camera = _camera;
+    if (camera == null || !camera.value.isInitialized || !_sessionActive) {
+      return;
+    }
+    _ticker?.cancel();
+    try {
+      final file = await camera.stopVideoRecording();
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      Navigator.pop(
+        context,
+        CircleRecording(bytes: bytes, name: file.name),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
   }
 
-  Future<void> _toggleRecord() async {
+  Future<void> _startRecord() async {
     final camera = _camera;
     if (camera == null || !camera.value.isInitialized) {
       await _fallbackPick();
       return;
     }
-    if (_recording) {
-      _ticker?.cancel();
-      try {
-        final file = await camera.stopVideoRecording();
-        final bytes = await file.readAsBytes();
-        if (!mounted) return;
-        Navigator.pop(
-          context,
-          CircleRecording(bytes: bytes, name: file.name),
-        );
-      } catch (e) {
-        if (mounted) setState(() => _error = e.toString());
-      }
-      return;
-    }
     try {
       await camera.startVideoRecording();
-      _started = DateTime.now();
-      _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
-        if (mounted) setState(() {});
-        final started = _started;
-        if (started != null &&
-            DateTime.now().difference(started).inSeconds >= 60) {
-          _toggleRecord();
-        }
+      _segmentStarted = DateTime.now();
+      _startTicker();
+      setState(() {
+        _recording = true;
+        _paused = false;
       });
-      setState(() => _recording = true);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _pauseRecord() async {
+    final camera = _camera;
+    if (camera == null || !_recording || _paused) return;
+    try {
+      await camera.pauseVideoRecording();
+      final started = _segmentStarted;
+      if (started != null) {
+        _recorded += DateTime.now().difference(started);
+      }
+      _segmentStarted = null;
+      if (mounted) {
+        setState(() {
+          _paused = true;
+          _recording = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _resumeRecord() async {
+    final camera = _camera;
+    if (camera == null || !_paused) return;
+    try {
+      await camera.resumeVideoRecording();
+      _segmentStarted = DateTime.now();
+      if (mounted) {
+        setState(() {
+          _paused = false;
+          _recording = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _onCenterTap() async {
+    if (!_sessionActive) {
+      await _startRecord();
+      return;
+    }
+    if (_paused) {
+      await _resumeRecord();
+    } else {
+      await _pauseRecord();
     }
   }
 
@@ -195,9 +264,7 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
   }
 
   String _elapsed() {
-    final started = _started;
-    if (started == null) return '0:00';
-    final sec = DateTime.now().difference(started).inSeconds.clamp(0, 60);
+    final sec = _totalRecorded.inSeconds.clamp(0, 60);
     return '0:${sec.toString().padLeft(2, '0')}';
   }
 
@@ -259,21 +326,23 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
               ),
             ),
           ),
-          if (_recording)
+          if (_sessionActive)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Column(
                 children: [
                   Text(
-                    '${strings.recording} ${_elapsed()} / 1:00',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    '${_paused ? (strings.isRu ? 'Пауза' : 'Paused') : strings.recording} ${_elapsed()} / 1:00',
+                    style: TextStyle(
+                      color: _paused ? Colors.amber : Colors.white,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Щипок — зум  ${_zoom.toStringAsFixed(1)}x',
+                    strings.isRu
+                        ? 'Щипок — зум  ${_zoom.toStringAsFixed(1)}x'
+                        : 'Pinch to zoom  ${_zoom.toStringAsFixed(1)}x',
                     style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
                 ],
@@ -284,11 +353,11 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                if (_recording)
+                if (_sessionActive)
                   IconButton(
                     onPressed: _cancelRecord,
                     icon: const Icon(Icons.close, color: Colors.white70),
-                    tooltip: 'Отмена',
+                    tooltip: strings.isRu ? 'Отмена' : 'Cancel',
                   )
                 else
                   TextButton(
@@ -297,31 +366,40 @@ class _CircleRecorderScreenState extends State<CircleRecorderScreen> {
                         style: const TextStyle(color: Colors.white70)),
                   ),
                 GestureDetector(
-                  onTap: _toggleRecord,
+                  onTap: _onCenterTap,
                   child: Container(
                     width: 76,
                     height: 76,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
-                      color: _recording ? Colors.redAccent : Colors.white24,
+                      border: Border.all(
+                        color: _sessionActive ? Colors.white : Colors.white,
+                        width: 4,
+                      ),
+                      color: _sessionActive
+                          ? (_paused ? Colors.white24 : Colors.redAccent)
+                          : Colors.white24,
                     ),
                     child: Icon(
-                      _recording ? Icons.stop : Icons.fiber_manual_record,
+                      !_sessionActive
+                          ? Icons.fiber_manual_record
+                          : _paused
+                              ? Icons.fiber_manual_record
+                              : Icons.pause_rounded,
                       color: Colors.white,
                       size: 36,
                     ),
                   ),
                 ),
-                if (_recording)
+                if (_sessionActive)
                   IconButton(
-                    onPressed: _sendRecord,
+                    onPressed: _stopAndSend,
                     icon: const Icon(Icons.send, color: Colors.white),
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.white24,
                       shape: const CircleBorder(),
                     ),
-                    tooltip: 'Отправить',
+                    tooltip: strings.isRu ? 'Отправить' : 'Send',
                   )
                 else
                   IconButton(

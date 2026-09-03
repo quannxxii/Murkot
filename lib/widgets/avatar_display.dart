@@ -47,7 +47,7 @@ class AvatarDisplay extends StatelessWidget {
     Widget? imageWidget;
     if (isNetwork) {
       imageWidget = Image.network(
-        path!,
+        path,
         width: size,
         height: size,
         fit: BoxFit.cover,
@@ -239,15 +239,15 @@ class _FramePainter extends CustomPainter {
     for (var i = 0; i < 8; i++) {
       final a = t * math.pi * 2 + i * (math.pi * 2 / 8);
       final p = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
-      _star(canvas, p, 3.2 + (i.isEven ? 1.2 : 0), paint);
+      _star(canvas, p, 6.5 + (i.isEven ? 2.2 : 0), paint);
     }
     canvas.drawCircle(
       c,
       r - 1,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = MurkotColors.orange.withValues(alpha: 0.85),
+        ..strokeWidth = 3.2
+        ..color = MurkotColors.orange.withValues(alpha: 0.9),
     );
   }
 
@@ -268,7 +268,7 @@ class _FramePainter extends CustomPainter {
       Paint()
         ..shader = shader
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.4,
+        ..strokeWidth = 5.0,
     );
   }
 
@@ -277,7 +277,7 @@ class _FramePainter extends CustomPainter {
     const waves = 18;
     for (var i = 0; i <= waves; i++) {
       final a = i / waves * math.pi * 2;
-      final wobble = math.sin(a * 4 + t * math.pi * 2) * 2.4;
+      final wobble = math.sin(a * 4 + t * math.pi * 2) * 3.2;
       final p = Offset(
         c.dx + math.cos(a) * (r + wobble),
         c.dy + math.sin(a) * (r + wobble),
@@ -293,7 +293,7 @@ class _FramePainter extends CustomPainter {
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6
+        ..strokeWidth = 4.2
         ..color = const Color(0xFF3B82F6),
     );
   }
@@ -303,34 +303,60 @@ class _FramePainter extends CustomPainter {
     for (var i = 0; i < 20; i++) {
       final a = i / 20 * math.pi * 2 + t * math.pi * 2 * 0.15;
       final p = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
-      canvas.drawCircle(p, i.isEven ? 2.4 : 1.6, paint);
+      canvas.drawCircle(p, i.isEven ? 4.2 : 2.8, paint);
     }
   }
 
   void _paintCitrus(Canvas canvas, Offset c, double r) {
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.2
-        ..shader = SweepGradient(
-          colors: const [
-            MurkotColors.yellow,
-            MurkotColors.orange,
-            MurkotColors.deepOrange,
-            MurkotColors.yellow,
-          ],
-          transform: GradientRotation(t * math.pi * 2),
-        ).createShader(Rect.fromCircle(center: c, radius: r)),
-    );
-    final leaf = Paint()..color = MurkotColors.leaf;
-    for (var i = 0; i < 3; i++) {
-      final a = t * math.pi * 2 + i * (math.pi * 2 / 3);
-      final p = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
-      canvas.drawOval(
-        Rect.fromCenter(center: p, width: 7, height: 4),
-        leaf,
+    // Rotating orange wedges (rind) around the avatar.
+    const slices = 8;
+    final rot = t * math.pi * 2;
+    for (var i = 0; i < slices; i++) {
+      final a0 = rot + i * (math.pi * 2 / slices);
+      final a1 = a0 + math.pi * 2 / slices * 0.78;
+      final rind = Path()
+        ..moveTo(
+          c.dx + math.cos(a0) * (r - 7),
+          c.dy + math.sin(a0) * (r - 7),
+        )
+        ..lineTo(
+          c.dx + math.cos(a0) * (r + 2),
+          c.dy + math.sin(a0) * (r + 2),
+        )
+        ..arcToPoint(
+          Offset(
+            c.dx + math.cos(a1) * (r + 2),
+            c.dy + math.sin(a1) * (r + 2),
+          ),
+          radius: Radius.circular(r + 2),
+          largeArc: false,
+        )
+        ..lineTo(
+          c.dx + math.cos(a1) * (r - 7),
+          c.dy + math.sin(a1) * (r - 7),
+        )
+        ..arcToPoint(
+          Offset(
+            c.dx + math.cos(a0) * (r - 7),
+            c.dy + math.sin(a0) * (r - 7),
+          ),
+          radius: Radius.circular(r - 7),
+          clockwise: false,
+        )
+        ..close();
+      canvas.drawPath(
+        rind,
+        Paint()
+          ..color = (i.isEven ? MurkotColors.orange : MurkotColors.yellow)
+              .withValues(alpha: 0.95),
+      );
+      final mid = (a0 + a1) / 2;
+      canvas.drawLine(
+        Offset(c.dx + math.cos(mid) * (r - 6), c.dy + math.sin(mid) * (r - 6)),
+        Offset(c.dx + math.cos(mid) * (r + 1), c.dy + math.sin(mid) * (r + 1)),
+        Paint()
+          ..color = MurkotColors.deepOrange.withValues(alpha: 0.55)
+          ..strokeWidth = 1.8,
       );
     }
   }
@@ -341,17 +367,17 @@ class _FramePainter extends CustomPainter {
       r - 0.5,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = const Color(0xFF38BDF8).withValues(alpha: 0.7),
+        ..strokeWidth = 3.2
+        ..color = const Color(0xFF38BDF8).withValues(alpha: 0.75),
     );
     final paint = Paint()..color = const Color(0xFF0EA5E9);
     for (var i = 0; i < 10; i++) {
       final a = t * math.pi * 2 + i * (math.pi * 2 / 10);
       final p = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
       final path = Path()
-        ..moveTo(p.dx, p.dy - 4)
-        ..quadraticBezierTo(p.dx + 3, p.dy, p.dx, p.dy + 4)
-        ..quadraticBezierTo(p.dx - 3, p.dy, p.dx, p.dy - 4);
+        ..moveTo(p.dx, p.dy - 7)
+        ..quadraticBezierTo(p.dx + 5.5, p.dy, p.dx, p.dy + 7)
+        ..quadraticBezierTo(p.dx - 5.5, p.dy, p.dx, p.dy - 7);
       canvas.drawPath(path, paint);
     }
   }
