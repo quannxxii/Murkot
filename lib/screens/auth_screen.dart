@@ -77,9 +77,10 @@ class _AuthScreenState extends State<AuthScreen> {
       body: ListenableBuilder(
         listenable: widget.settingsService,
         builder: (context, _) {
+          // Spotlight temporarily disabled (keep widget for later restore).
           return AuthWavySpotlight(
             cardKey: _cardKey,
-            enabled: widget.settingsService.authSpotlight,
+            enabled: false,
             child: MurkotAtmosphere(
               child: SafeArea(
                 child: Center(
@@ -270,14 +271,13 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ),
                               ),
                             ),
-                            // Theme switch temporarily hidden on auth screen.
-                            // Positioned(
-                            //   top: 10,
-                            //   right: 10,
-                            //   child: MurkotThemeSwitch(
-                            //     settings: widget.settingsService,
-                            //   ),
-                            // ),
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: MurkotThemeSwitch(
+                                settings: widget.settingsService,
+                              ),
+                            ),
                           ],
                         ),
                       ),

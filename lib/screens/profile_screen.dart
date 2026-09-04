@@ -490,22 +490,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final isNetworkWallpaper = customPath != null &&
             (customPath.startsWith('http://') ||
                 customPath.startsWith('https://'));
-        final hasFileWallpaper = localPathExists(customPath);
-        final hasCustomWallpaper = isNetworkWallpaper || hasFileWallpaper;
+        final hasCustomWallpaper =
+            isNetworkWallpaper || localPathExists(customPath);
 
-        if (!isNarrow) {
-          return _buildWide(
-            context, strings, theme, current, wallpaper,
-            customPath, isNetworkWallpaper, hasFileWallpaper, hasCustomWallpaper,
-          );
-        }
-
-        // Narrow (phone) — original single-column scrollable layout.
-        final avatarRadius = (screenWidth * 0.36).clamp(120.0, 176.0);
+        // Same structure as stranger profile: wallpaper + avatar on top,
+        // fields below. Full-width on desktop (not a narrow centered column).
+        final avatarRadius = isNarrow
+            ? (screenWidth * 0.36).clamp(120.0, 176.0)
+            : 96.0;
         final avatarSize = avatarRadius * 2;
         final wallpaperHeight = math.max(
           avatarSize * 1.55,
-          MediaQuery.sizeOf(context).height * 0.34,
+          MediaQuery.sizeOf(context).height * (isNarrow ? 0.34 : 0.38),
         );
 
         return CustomScrollView(
@@ -515,9 +511,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: wallpaperHeight,
                 width: double.infinity,
                 child: _wallpaperStack(
-                  context, theme, strings, current, wallpaper,
-                  customPath, isNetworkWallpaper, hasCustomWallpaper,
-                  avatarRadius, avatarSize, wallpaperHeight,
+                  context,
+                  theme,
+                  strings,
+                  current,
+                  wallpaper,
+                  customPath,
+                  isNetworkWallpaper,
+                  hasCustomWallpaper,
+                  avatarRadius,
+                  avatarSize,
+                  wallpaperHeight,
                 ),
               ),
             ),
@@ -526,10 +530,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: theme.colorScheme.surface,
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
-                    16, 16, 16,
+                    isNarrow ? 16 : 32,
+                    16,
+                    isNarrow ? 16 : 32,
                     20 + MediaQuery.paddingOf(context).bottom,
                   ),
-                  child: _profileFields(context, strings, theme, current),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            strings.changeAvatarHint,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _profileFields(context, strings, theme, current),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -539,183 +564,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Wide (desktop/tablet) — two-column layout: left = sticky hero, right = fields.
-  Widget _buildWide(
-    BuildContext context,
-    AppStrings strings,
-    ThemeData theme,
-    User current,
-    ProfileWallpaper wallpaper,
-    String? customPath,
-    bool isNetworkWallpaper,
-    bool hasFileWallpaper,
-    bool hasCustomWallpaper,
-  ) {
-    final screenSize = MediaQuery.sizeOf(context);
-    final leftWidth = (screenSize.width * 0.38).clamp(280.0, 420.0);
-    final avatarRadius = (leftWidth * 0.28).clamp(80.0, 130.0);
-    final avatarSize = avatarRadius * 2;
-    final wallpaperHeight = screenSize.height;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left column — hero (sticky-feeling, fixed width, full height).
-        SizedBox(
-          width: leftWidth,
-          height: screenSize.height,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: customPath == null || !hasCustomWallpaper
-                    ? ProfileWallpaperSurface(
-                        wallpaper: wallpaper,
-                        ornamentSize: 260,
-                        ornamentOpacity: 0.28,
-                      )
-                    : (isNetworkWallpaper
-                        ? Image.network(customPath, fit: BoxFit.cover)
-                        : Image.file(File(customPath), fit: BoxFit.cover)),
-              ),
-              // Top-right buttons.
-              Positioned(
-                top: MediaQuery.paddingOf(context).top + 4,
-                right: 8,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    MurkotFloatingTooltip(
-                      message: strings.copyProfileLink,
-                      child: IconButton(
-                        icon: const Icon(Icons.link),
-                        tooltip: '',
-                        onPressed: _copyProfileLink,
-                      ),
-                    ),
-                    if (isMurkotAdminLogin(current.login))
-                      MurkotFloatingTooltip(
-                        message: strings.adminTitle,
-                        child: IconButton(
-                          icon: const Icon(Icons.admin_panel_settings_outlined),
-                          tooltip: '',
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => AdminPanelScreen(
-                                  currentLogin: current.login,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    MurkotFloatingTooltip(
-                      message: strings.settingsTitle,
-                      child: IconButton(
-                        icon: const Icon(Icons.settings_outlined),
-                        tooltip: '',
-                        onPressed: _openSettings,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Avatar centered vertically in left pane.
-              Positioned(
-                top: (wallpaperHeight - avatarSize) / 2,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: _AvatarSection(
-                    avatarPath: current.avatarPath,
-                    avatarEmoji: current.avatarEmoji,
-                    login: current.login,
-                    nickColorId: current.nickColorId,
-                    frame: current.avatarFrame,
-                    showPlusBadge: current.isPlus || _billing.isPlus,
-                    devStatus: current.devStatus,
-                    isLoading: _isUpdatingAvatar,
-                    hint: strings.changeAvatarHint,
-                    onTap: _isUpdatingAvatar ? null : _showAvatarOptions,
-                    onLoginTap: _changeLogin,
-                    forceRadius: avatarRadius,
-                    compact: true,
-                  ),
-                ),
-              ),
-              // Login & dev badge under avatar.
-              Positioned(
-                top: (wallpaperHeight - avatarSize) / 2 + avatarSize + 8,
-                left: 16,
-                right: 16,
-                child: Column(
-                  children: [
-                    InkWell(
-                      onTap: _changeLogin,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            current.login,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: nickColorFromId(current.nickColorId),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.edit_outlined,
-                              size: 16,
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.7)),
-                        ],
-                      ),
-                    ),
-                    if (current.devStatus != DevStatus.none) ...[
-                      const SizedBox(height: 8),
-                      DevStatusBadge(status: current.devStatus, large: true),
-                    ],
-                    const SizedBox(height: 12),
-                    Text(
-                      strings.changeAvatarHint,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Right column — scrollable fields.
-        Expanded(
-          child: ColoredBox(
-            color: theme.colorScheme.surface,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                24, 24, 24,
-                24 + MediaQuery.paddingOf(context).bottom,
-              ),
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(20),
-                clipBehavior: Clip.antiAlias,
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: _profileFields(context, strings, theme, current),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Wallpaper + avatar stack for the narrow (phone) layout.
+  /// Wallpaper + avatar stack (full-bleed header).
   Widget _wallpaperStack(
     BuildContext context,
     ThemeData theme,
