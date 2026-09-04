@@ -497,7 +497,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // fields below. Full-width on desktop (not a narrow centered column).
         final avatarRadius = isNarrow
             ? (screenWidth * 0.36).clamp(120.0, 176.0)
-            : 96.0;
+            : 192.0;
         final avatarSize = avatarRadius * 2;
         final wallpaperHeight = math.max(
           avatarSize * 1.55,
