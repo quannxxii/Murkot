@@ -802,6 +802,8 @@ class AppStrings {
       isRu ? 'Стикерпак добавлен' : 'Sticker pack added';
   String get stickerPackAlreadyAdded =>
       isRu ? 'Уже добавлен' : 'Already added';
+  String get removeStickers =>
+      isRu ? 'Удалить стикеры' : 'Remove stickers';
   String get stickerPackNotFound =>
       isRu ? 'Стикерпак не найден' : 'Sticker pack not found';
   String stickerPackCount(int count) => isRu

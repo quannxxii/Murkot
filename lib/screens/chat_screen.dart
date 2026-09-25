@@ -20,6 +20,7 @@ import '../services/presence_service.dart';
 import '../services/settings_service.dart';
 import '../utils/helpers.dart';
 import '../utils/main_tab_bus.dart';
+import '../utils/sticker_pack_link.dart';
 import '../services/voice_recorder.dart';
 import '../data/sticker_packs.dart';
 import '../widgets/avatar_display.dart';
@@ -34,6 +35,7 @@ import 'circle_recorder_screen.dart';
 import 'forward_message_sheet.dart';
 import 'media_viewer_screen.dart';
 import 'stranger_profile_screen.dart';
+import 'sticker_pack_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -1528,6 +1530,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         ? () => widget.chatService
                                             .retryFailedMessage(message.id)
                                         : null,
+                                    onOpenStickerPack: _openStickerPack,
                                   ),
                                 ],
                               );
@@ -1988,6 +1991,17 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Future<void> _openStickerPack(String shortName) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => StickerPackScreen(
+          shortName: shortName,
+          settingsService: widget.settingsService,
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendSticker(StickerItem sticker) async {
     if (!widget.chatService.canSendMessages(_conversation)) return;
     try {
@@ -1995,7 +2009,11 @@ class _ChatScreenState extends State<ChatScreen> {
         conversationId: _conversation.id,
         type: MessageType.sticker,
         content: sticker.isImage
-            ? MediaPayload(url: sticker.imageUrl!, name: 'sticker').encode()
+            ? MediaPayload(
+                url: sticker.imageUrl!,
+                name: 'sticker',
+                stickerSet: sticker.packShortName,
+              ).encode()
             : sticker.glyph,
       );
       _scrollToBottom();
@@ -2613,6 +2631,7 @@ class _MessageBubble extends StatelessWidget {
     this.onRetry,
     this.onImageTap,
     this.onSenderTap,
+    this.onOpenStickerPack,
     this.forceLeft = false,
     this.senderAvatarUrl,
   });
@@ -2628,6 +2647,7 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onRetry;
   final ValueChanged<String>? onImageTap;
   final VoidCallback? onSenderTap;
+  final ValueChanged<String>? onOpenStickerPack;
 
   /// Desktop mode: align every bubble to the left regardless of sender.
   final bool forceLeft;
@@ -2654,11 +2674,15 @@ class _MessageBubble extends StatelessWidget {
     }
 
     if (message.type == MessageType.sticker) {
+      final stickerSet = MediaPayload.tryParse(message.content)?.stickerSet;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Align(
           alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
           child: GestureDetector(
+            onTap: stickerSet == null || onOpenStickerPack == null
+                ? null
+                : () => onOpenStickerPack!(stickerSet),
             onLongPressStart: (d) => onLongPress(d.globalPosition),
             child: Column(
               crossAxisAlignment: alignRight
@@ -2903,15 +2927,10 @@ class _MessageBubble extends StatelessWidget {
                                 ),
                               )
                             else
-                              Text(
-                                message.type == MessageType.text
-                                    ? message.content
-                                    : messageTypeLabel(message.type),
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: isOwn
-                                      ? theme.colorScheme.onPrimary
-                                      : theme.colorScheme.onSurface,
-                                ),
+                              _MessageText(
+                                message: message,
+                                isOwn: isOwn,
+                                onOpenStickerPack: onOpenStickerPack,
                               ),
                             if (media != null &&
                                 (media.caption?.isNotEmpty ?? false))
@@ -3054,6 +3073,59 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MessageText extends StatelessWidget {
+  const _MessageText({
+    required this.message,
+    required this.isOwn,
+    this.onOpenStickerPack,
+  });
+
+  final Message message;
+  final bool isOwn;
+  final ValueChanged<String>? onOpenStickerPack;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = isOwn
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final text = message.type == MessageType.text
+        ? message.content
+        : messageTypeLabel(message.type);
+    final style = theme.textTheme.bodyMedium?.copyWith(color: color);
+    final packName = message.type == MessageType.text
+        ? stickerPackNameFromText(text)
+        : null;
+    if (packName == null || onOpenStickerPack == null) {
+      return Text(text, style: style);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isStickerPackLinkMessage(text)) Text(text, style: style),
+        Text(
+          packName,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () => onOpenStickerPack!(packName),
+          style: TextButton.styleFrom(
+            foregroundColor: color,
+            backgroundColor: color.withValues(alpha: 0.14),
+            visualDensity: VisualDensity.compact,
+          ),
+          child: Text(context.strings.addStickers),
+        ),
+      ],
     );
   }
 }

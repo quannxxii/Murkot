@@ -23,7 +23,6 @@ import '../utils/configure_web.dart';
 import '../utils/invite_deep_link.dart';
 import '../utils/main_tab_bus.dart';
 import '../utils/profile_deep_link.dart';
-import '../utils/sticker_pack_link.dart';
 import '../widgets/ad_ticker.dart';
 import '../widgets/avatar_display.dart';
 import '../widgets/command_palette.dart';
@@ -32,7 +31,6 @@ import '../widgets/murkot_decor.dart';
 import '../widgets/session_boot.dart';
 import '../widgets/unlumen/murkot_fx.dart';
 import 'about_murkot_screen.dart';
-import 'sticker_pack_screen.dart';
 import 'board_screen.dart';
 import 'chat_screen.dart';
 import 'guest_locked_screen.dart';
@@ -84,14 +82,6 @@ class _MainScreenState extends State<MainScreen> {
     _notificationService.attachSettings(widget.settingsService);
     mainTabIndex.addListener(_onExternalTabChange);
     _initServices();
-  }
-
-  @override
-  void didUpdateWidget(MainScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isGuest && !widget.isGuest) {
-      unawaited(_openPendingStickerPack());
-    }
   }
 
   void _onExternalTabChange() {
@@ -288,20 +278,6 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _openPendingDeepLinks() async {
     await _openPendingInviteDeepLink();
     await _openPendingProfileDeepLink();
-    await _openPendingStickerPack();
-  }
-
-  Future<void> _openPendingStickerPack() async {
-    final name = consumePendingStickerPack();
-    if (name == null || !mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => StickerPackScreen(
-          shortName: name,
-          settingsService: widget.settingsService,
-        ),
-      ),
-    );
   }
 
   Future<void> _openPendingInviteDeepLink() async {

@@ -64,11 +64,14 @@ class _StickerPackScreenState extends State<StickerPackScreen> {
     final pack = _pack;
     if (pack == null || _adding || pack.isOwner || pack.isInstalled) return;
     if (widget.settingsService.isGuest) {
-      pendingStickerPack.value = pack.shortName;
+      final name = pack.shortName;
       await ensureRegistered(
         context,
         settings: widget.settingsService,
       );
+      if (!mounted || widget.settingsService.isGuest) return;
+      pendingStickerPack.value = name;
+      Navigator.of(context).pop();
       return;
     }
     setState(() => _adding = true);
@@ -92,10 +95,31 @@ class _StickerPackScreenState extends State<StickerPackScreen> {
         SnackBar(
           content: Text(
             missing
-                ? '${strings.stickerPackInstallFailed}. SQL: features_v31.sql'
-                : strings.stickerPackInstallFailed,
+                ? '${strings.stickerPackInstallFailed}. SQL: features_v33.sql'
+                : '${strings.stickerPackInstallFailed}: $e',
           ),
         ),
+      );
+    }
+  }
+
+  Future<void> _remove() async {
+    final pack = _pack;
+    if (pack == null || _adding || pack.isOwner || !pack.isInstalled) return;
+    setState(() => _adding = true);
+    final strings = context.strings;
+    try {
+      await StickerPackService().uninstall(pack.shortName);
+      if (!mounted) return;
+      setState(() {
+        _pack = pack.copyWith(isInstalled: false);
+        _adding = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _adding = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${strings.stickerPackInstallFailed}: $e')),
       );
     }
   }
@@ -135,7 +159,7 @@ class _StickerPackScreenState extends State<StickerPackScreen> {
                     padding: const EdgeInsets.all(24),
                     child: Text(
                       _missingSql
-                          ? '${strings.stickerPackNotFound}. SQL: features_v31.sql и features_v32.sql'
+                          ? '${strings.stickerPackNotFound}. SQL: features_v33.sql'
                           : _error == null
                               ? strings.stickerPackNotFound
                               : '${strings.stickerPackNotFound}: $_error',
@@ -192,9 +216,13 @@ class _StickerPackScreenState extends State<StickerPackScreen> {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         child: FilledButton(
-                          onPressed: pack.isOwner || pack.isInstalled || _adding
+                          onPressed: _adding
                               ? null
-                              : _add,
+                              : pack.isOwner
+                                  ? null
+                                  : pack.isInstalled
+                                      ? _remove
+                                      : _add,
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(double.infinity, 48),
                             backgroundColor: MurkotColors.orange,
@@ -211,7 +239,9 @@ class _StickerPackScreenState extends State<StickerPackScreen> {
                                 )
                               : Text(
                                   pack.isOwner || pack.isInstalled
-                                      ? strings.stickerPackAlreadyAdded
+                                      ? pack.isInstalled && !pack.isOwner
+                                          ? strings.removeStickers
+                                          : strings.stickerPackAlreadyAdded
                                       : strings.addStickers,
                                 ),
                         ),

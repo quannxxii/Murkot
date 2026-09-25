@@ -41,6 +41,7 @@ flutter run -d chrome --web-hostname 127.0.0.1 --web-port 8080
 16. **`features_v30.sql`** — свои стикеры из панели: `create_my_sticker_pack` / `add_my_sticker`
 17. **`features_v31.sql`** — короткое имя пака, ссылка `/s/имя`, установка и удаление стикера
 18. **`features_v32.sql`** — превью пака по ссылке, до кнопки «Добавить стикеры»
+19. **`features_v33.sql`** — чужой пак добавляется в панель, как в Telegram (`get`/`install` обходят RLS)
 
 ### Smoke / CI
 

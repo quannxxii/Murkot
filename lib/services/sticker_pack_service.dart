@@ -34,6 +34,9 @@ class StickerPackPreview {
   }
 }
 
+/// Bumps when the signed-in user installs or removes a pack.
+final stickerPacksChanged = ValueNotifier<int>(0);
+
 class StickerPackService {
   StickerPackService();
 
@@ -64,17 +67,26 @@ class StickerPackService {
       'install_sticker_pack',
       params: {'p_short_name': shortName.trim().toLowerCase()},
     );
+    stickerPacksChanged.value++;
+  }
+
+  Future<void> uninstall(String shortName) async {
+    await _client.rpc(
+      'uninstall_sticker_pack',
+      params: {'p_short_name': shortName.trim().toLowerCase()},
+    );
+    stickerPacksChanged.value++;
   }
 
   /// Public preview for `/s/<name>`. Null when the pack does not exist.
   Future<StickerPackPreview?> preview(String shortName) async {
-    final rows = await _client.rpc(
+    final rows = _rpcRows(await _client.rpc(
       'get_sticker_pack',
       params: {'p_short_name': shortName.trim().toLowerCase()},
-    );
-    if (rows is! List || rows.isEmpty) return null;
-    final row = Map<String, dynamic>.from(rows.first as Map);
-    final id = row['id'] as String?;
+    ));
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final id = row['id']?.toString();
     final title = (row['title'] as String?)?.trim();
     final name = (row['short_name'] as String?)?.trim();
     if (id == null || title == null || title.isEmpty || name == null) {
@@ -86,7 +98,7 @@ class StickerPackService {
       shortName: name,
       isOwner: row['is_owner'] == true,
       isInstalled: row['is_installed'] == true,
-      stickers: _stickerItems(row['stickers']),
+      stickers: _stickerItems(row['stickers'], packShortName: name),
     );
   }
 
@@ -120,14 +132,16 @@ class StickerPackService {
     try {
       final rows = await _client
           .from('sticker_packs')
-          .select('id, title, short_name, stickers(id, image_url, position)')
+          .select(
+            'id, title, short_name, owner_id, stickers(id, image_url, position)',
+          )
           .order('created_at', ascending: false);
       return _packsFromRows(rows, ownedFallback: true);
     } catch (e) {
       debugPrint('sticker short_name column missing: $e');
       final rows = await _client
           .from('sticker_packs')
-          .select('id, title, stickers(id, image_url, position)')
+          .select('id, title, owner_id, stickers(id, image_url, position)')
           .order('created_at', ascending: false);
       return _packsFromRows(rows, ownedFallback: true);
     }
@@ -155,13 +169,21 @@ class StickerPackService {
     return _client.storage.from('chat-media').getPublicUrl(path);
   }
 
+  List<Map<String, dynamic>> _rpcRows(dynamic rows) {
+    if (rows is List) {
+      return [
+        for (final row in rows)
+          if (row is Map) Map<String, dynamic>.from(row),
+      ];
+    }
+    if (rows is Map) return [Map<String, dynamic>.from(rows)];
+    return [];
+  }
+
   List<StickerPack> _packsFromRows(dynamic rows, {bool ownedFallback = false}) {
     final packs = <StickerPack>[];
-    for (final row in rows as List) {
-      final pack = _packFromRow(
-        Map<String, dynamic>.from(row as Map),
-        ownedFallback: ownedFallback,
-      );
+    for (final row in _rpcRows(rows)) {
+      final pack = _packFromRow(row, ownedFallback: ownedFallback);
       if (pack == null) continue;
       if (pack.stickers.isEmpty && !pack.isOwner) continue;
       packs.add(pack);
@@ -178,27 +200,34 @@ class StickerPackService {
     if (id == null || title == null || title.isEmpty) return null;
 
     final shortName = (row['short_name'] as String?)?.trim();
-    final isOwner = ownedFallback || row['is_owner'] == true;
+    final cleanName =
+        (shortName == null || shortName.isEmpty) ? null : shortName;
+    final ownerId = row['owner_id'] as String?;
+    final userId = _client.auth.currentUser?.id;
+    final isOwner = ownerId != null
+        ? ownerId == userId
+        : ownedFallback || row['is_owner'] == true;
 
     return StickerPack(
       id: id,
       titleRu: title,
       titleEn: title,
-      shortName: (shortName == null || shortName.isEmpty) ? null : shortName,
+      shortName: cleanName,
       isOwner: isOwner,
-      stickers: _stickerItems(row['stickers']),
+      stickers: _stickerItems(row['stickers'], packShortName: cleanName),
     );
   }
 
-  List<StickerItem> _stickerItems(dynamic raw) {
+  List<StickerItem> _stickerItems(dynamic raw, {String? packShortName}) {
     final list = _asMapList(raw)
       ..sort((a, b) => _asInt(a['position']).compareTo(_asInt(b['position'])));
     return [
       for (final item in list)
         if ((item['image_url'] as String?)?.isNotEmpty ?? false)
           StickerItem(
-            id: item['id'] as String,
+            id: '${item['id']}',
             imageUrl: item['image_url'] as String,
+            packShortName: packShortName,
           ),
     ];
   }

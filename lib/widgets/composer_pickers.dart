@@ -304,7 +304,12 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
     super.initState();
     _tabs = TabController(length: _packs.length, vsync: this);
     _bindTabs(_tabs);
+    stickerPacksChanged.addListener(_onPacksChanged);
     _loadMine();
+  }
+
+  void _onPacksChanged() {
+    if (mounted) unawaited(_loadMine());
   }
 
   void _bindTabs(TabController controller) {
@@ -334,6 +339,7 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
 
   @override
   void dispose() {
+    stickerPacksChanged.removeListener(_onPacksChanged);
     _tabs.dispose();
     super.dispose();
   }
@@ -384,7 +390,17 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
                           pack.stickers[index - (pack.isOwner ? 1 : 0)];
                       return InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () => widget.onPick(sticker),
+                        onTap: () => widget.onPick(
+                          pack.shortName == null
+                              ? sticker
+                              : StickerItem(
+                                  id: sticker.id,
+                                  glyph: sticker.glyph,
+                                  label: sticker.label,
+                                  imageUrl: sticker.imageUrl,
+                                  packShortName: pack.shortName,
+                                ),
+                        ),
                         onLongPress: pack.isOwner && sticker.isImage
                             ? () => _deleteSticker(sticker)
                             : null,

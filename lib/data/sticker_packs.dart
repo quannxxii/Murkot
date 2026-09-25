@@ -4,6 +4,7 @@ class StickerItem {
     this.glyph = '',
     this.label = '',
     this.imageUrl,
+    this.packShortName,
   });
 
   final String id;
@@ -12,6 +13,9 @@ class StickerItem {
 
   /// Set for stickers the user added to their own pack.
   final String? imageUrl;
+
+  /// Public pack slug, like Telegram's sticker set short name.
+  final String? packShortName;
 
   bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;
 }

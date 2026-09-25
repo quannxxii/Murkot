@@ -8,6 +8,7 @@ class MediaPayload {
     this.isCircle = false,
     this.caption,
     this.album = const [],
+    this.stickerSet,
   });
 
   final String url;
@@ -22,6 +23,9 @@ class MediaPayload {
   /// Empty for single-media messages ([url] is the only item then).
   final List<String> album;
 
+  /// Sticker pack short name, like Telegram's DocumentAttributeSticker set.
+  final String? stickerSet;
+
   List<String> get allUrls => album.isEmpty ? [url] : album;
 
   String encode() => jsonEncode({
@@ -31,6 +35,7 @@ class MediaPayload {
         if (isCircle) 'circle': true,
         if (caption != null && caption!.isNotEmpty) 'caption': caption,
         if (album.isNotEmpty) 'album': album,
+        if (stickerSet != null && stickerSet!.isNotEmpty) 'set': stickerSet,
       });
 
   static MediaPayload? tryParse(String content) {
@@ -48,6 +53,7 @@ class MediaPayload {
             isCircle: map['circle'] == true,
             caption: map['caption'] as String?,
             album: (map['album'] as List?)?.cast<String>() ?? const [],
+            stickerSet: map['set'] as String?,
           );
         }
       } catch (_) {}

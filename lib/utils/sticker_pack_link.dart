@@ -60,6 +60,27 @@ String buildPublicStickerPackUrl(String shortName) {
   return 'https://murkot.vercel.app/s/$clean';
 }
 
+final _packInText = RegExp(
+  r'(?:https?:\/\/\S+)?\/s\/([A-Za-z0-9_]{3,32})(?=\/|\s|$)',
+  caseSensitive: false,
+);
+
+final _onlyPackLink = RegExp(
+  r'^\s*(?:https?:\/\/\S+)?\/s\/[A-Za-z0-9_]{3,32}\/?\s*$',
+  caseSensitive: false,
+);
+
+/// Short name from a chat message that contains `/s/<name>`.
+String? stickerPackNameFromText(String text) {
+  final match = _packInText.firstMatch(text.trim());
+  final name = match?.group(1)?.toLowerCase();
+  if (name == null || !isValidStickerPackName(name)) return null;
+  return name;
+}
+
+/// True when the message is only a sticker-pack link.
+bool isStickerPackLinkMessage(String text) => _onlyPackLink.hasMatch(text.trim());
+
 String? consumePendingStickerPack() {
   final name = pendingStickerPack.value;
   if (name == null) return null;

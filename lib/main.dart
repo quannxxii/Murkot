@@ -12,6 +12,7 @@ import 'screens/auth_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/sticker_pack_screen.dart';
 import 'services/auth_service.dart';
 import 'services/settings_service.dart';
 import 'utils/configure_web.dart';
@@ -74,6 +75,8 @@ class _MurkotAppState extends State<MurkotApp> {
   /// Preserves curtain AnimationController across MaterialApp rebuilds.
   final _curtainKey = GlobalKey();
 
+  bool _stickerRouteOpen = false;
+
   /// Stable home instance — recreating `home:` on every settings notify
   /// was resetting the whole app (looked like a full page reload).
   late final Widget _home = _MurkotRootHome(
@@ -81,6 +84,63 @@ class _MurkotAppState extends State<MurkotApp> {
     settingsService: widget.settingsService,
     prefs: widget.prefs,
   );
+
+  @override
+  void initState() {
+    super.initState();
+    pendingStickerPack.addListener(_scheduleStickerPack);
+    widget.authService.addListener(_scheduleStickerPack);
+    widget.settingsService.addListener(_scheduleStickerPack);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scheduleStickerPack());
+  }
+
+  @override
+  void dispose() {
+    pendingStickerPack.removeListener(_scheduleStickerPack);
+    widget.authService.removeListener(_scheduleStickerPack);
+    widget.settingsService.removeListener(_scheduleStickerPack);
+    super.dispose();
+  }
+
+  /// Opens `/s/<name>` on top of login, guest, or the main screen.
+  /// Telegram shows the pack before the set is installed.
+  void _scheduleStickerPack() {
+    final name = pendingStickerPack.value;
+    if (name == null || _stickerRouteOpen) return;
+    if (!widget.authService.isReady) return;
+    if (!widget.authService.isAuthenticated && !widget.settingsService.isGuest) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _stickerRouteOpen) return;
+      if (!widget.authService.isAuthenticated &&
+          !widget.settingsService.isGuest) {
+        return;
+      }
+      final current = consumePendingStickerPack();
+      if (current == null) return;
+      final nav = _navKey.currentState;
+      if (nav == null) {
+        pendingStickerPack.value = current;
+        return;
+      }
+      _stickerRouteOpen = true;
+      hideMurkotHtmlBoot();
+      nav
+          .push(
+            MaterialPageRoute<void>(
+              builder: (context) => StickerPackScreen(
+                shortName: current,
+                settingsService: widget.settingsService,
+              ),
+            ),
+          )
+          .whenComplete(() {
+            _stickerRouteOpen = false;
+            _scheduleStickerPack();
+          });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
