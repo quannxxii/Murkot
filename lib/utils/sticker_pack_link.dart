@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import 'sticker_pack_link_stub.dart'
@@ -80,6 +82,71 @@ String? stickerPackNameFromText(String text) {
 
 /// True when the message is only a sticker-pack link.
 bool isStickerPackLinkMessage(String text) => _onlyPackLink.hasMatch(text.trim());
+
+/// Pack link plus the public sticker URLs needed to copy it.
+class SharedStickerPackLink {
+  const SharedStickerPackLink({
+    required this.shortName,
+    required this.title,
+    required this.imageUrls,
+  });
+
+  final String shortName;
+  final String title;
+  final List<String> imageUrls;
+}
+
+const _packMarker = 'murkotStickerPack';
+
+String encodeSharedStickerPack({
+  required String shortName,
+  required String title,
+  required List<String> imageUrls,
+}) {
+  return jsonEncode({
+    _packMarker: {
+      'name': shortName,
+      'title': title,
+      'images': imageUrls,
+    },
+  });
+}
+
+/// JSON from a sent pack link, or a plain `/s/<name>` URL with no images.
+SharedStickerPackLink? decodeSharedStickerPack(String content) {
+  final trimmed = content.trim();
+  if (trimmed.startsWith('{') && trimmed.contains(_packMarker)) {
+    try {
+      final map = jsonDecode(trimmed);
+      if (map is! Map) return null;
+      final pack = map[_packMarker];
+      if (pack is! Map) return null;
+      final name = pack['name']?.toString().trim().toLowerCase() ?? '';
+      if (!isValidStickerPackName(name)) return null;
+      final title = (pack['title'] as String?)?.trim();
+      final images = <String>[];
+      final raw = pack['images'];
+      if (raw is List) {
+        for (final item in raw) {
+          final url = item?.toString() ?? '';
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            images.add(url);
+          }
+        }
+      }
+      return SharedStickerPackLink(
+        shortName: name,
+        title: (title == null || title.isEmpty) ? name : title,
+        imageUrls: images,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+  final name = stickerPackNameFromText(trimmed);
+  if (name == null) return null;
+  return SharedStickerPackLink(shortName: name, title: name, imageUrls: const []);
+}
 
 String? consumePendingStickerPack() {
   final name = pendingStickerPack.value;

@@ -77,7 +77,14 @@ class _StickerPackScreenState extends State<StickerPackScreen> {
     setState(() => _adding = true);
     final strings = context.strings;
     try {
-      await StickerPackService().install(pack.shortName);
+      await StickerPackService().installOrCopy(
+        shortName: pack.shortName,
+        title: pack.title,
+        imageUrls: [
+          for (final sticker in pack.stickers)
+            if (sticker.imageUrl != null) sticker.imageUrl!,
+        ],
+      );
       if (!mounted) return;
       setState(() {
         _pack = pack.copyWith(isInstalled: true);

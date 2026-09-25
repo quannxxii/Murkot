@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/sticker_packs.dart';
@@ -68,6 +69,88 @@ class StickerPackService {
       params: {'p_short_name': shortName.trim().toLowerCase()},
     );
     stickerPacksChanged.value++;
+  }
+
+  /// Installs the shared pack. If that database call is missing, copies the
+  /// public pictures into a pack the current user owns so it shows up anyway.
+  Future<void> installOrCopy({
+    required String shortName,
+    required String title,
+    List<String> imageUrls = const [],
+  }) async {
+    Object? installError;
+    try {
+      await _client.rpc(
+        'install_sticker_pack',
+        params: {'p_short_name': shortName.trim().toLowerCase()},
+      );
+      final mine = await loadMine();
+      if (mine.any((pack) =>
+          pack.shortName?.toLowerCase() == shortName.trim().toLowerCase())) {
+        stickerPacksChanged.value++;
+        return;
+      }
+    } catch (e) {
+      installError = e;
+    }
+
+    var urls = imageUrls;
+    var packTitle = title.trim();
+    if (urls.isEmpty) {
+      final previewPack = await preview(shortName);
+      if (previewPack != null) {
+        packTitle = previewPack.title;
+        urls = [
+          for (final sticker in previewPack.stickers)
+            if (sticker.imageUrl != null) sticker.imageUrl!,
+        ];
+      }
+    }
+    if (urls.isEmpty) {
+      throw installError ?? StateError('Pack not found');
+    }
+    final already = await loadMine();
+    final wanted = shortName.trim().toLowerCase();
+    if (already.any((pack) =>
+        pack.shortName?.toLowerCase() == wanted ||
+        (pack.isOwner &&
+            pack.titleRu == packTitle &&
+            pack.stickers.isNotEmpty))) {
+      stickerPacksChanged.value++;
+      return;
+    }
+    await _copyImages(title: packTitle, imageUrls: urls);
+    stickerPacksChanged.value++;
+  }
+
+  Future<void> _copyImages({
+    required String title,
+    required List<String> imageUrls,
+  }) async {
+    final cleanTitle = title.trim().isEmpty ? 'Stickers' : title.trim();
+    final clipped = cleanTitle.length > 40 ? cleanTitle.substring(0, 40) : cleanTitle;
+    final packId = await createPack(clipped);
+    var saved = 0;
+    for (final url in imageUrls.take(30)) {
+      try {
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) continue;
+        final name = Uri.parse(url).pathSegments.isEmpty
+            ? 'sticker.png'
+            : Uri.parse(url).pathSegments.last;
+        await addImage(
+          packId: packId,
+          bytes: response.bodyBytes,
+          fileName: name,
+        );
+        saved++;
+      } catch (e) {
+        debugPrint('sticker copy failed: $e');
+      }
+    }
+    if (saved == 0) {
+      throw StateError('Could not copy stickers');
+    }
   }
 
   Future<void> uninstall(String shortName) async {

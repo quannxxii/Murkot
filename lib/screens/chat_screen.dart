@@ -18,6 +18,7 @@ import '../services/chat_service.dart';
 import '../services/media_service.dart';
 import '../services/presence_service.dart';
 import '../services/settings_service.dart';
+import '../services/sticker_pack_service.dart';
 import '../utils/helpers.dart';
 import '../utils/main_tab_bus.dart';
 import '../utils/sticker_pack_link.dart';
@@ -28,6 +29,7 @@ import '../widgets/circle_video_player.dart';
 import '../widgets/composer_pickers.dart';
 import '../widgets/murkot_decor.dart';
 import '../widgets/confirm_dialogs.dart';
+import '../widgets/guest_gate.dart';
 import '../widgets/voice_message_player.dart';
 import '../widgets/unlumen/murkot_fx.dart';
 import 'about_murkot_screen.dart';
@@ -282,8 +284,8 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    final text = _messageController.text;
-    if (text.trim().isEmpty) return;
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
 
     if (!widget.chatService.canSendMessages(_conversation)) return;
 
@@ -293,11 +295,37 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _replyTo = null);
     _messageFocusNode.requestFocus();
 
+    var content = text;
+    if (isStickerPackLinkMessage(text)) {
+      final name = stickerPackNameFromText(text);
+      if (name != null) {
+        try {
+          final packs = await StickerPackService().loadMine();
+          for (final pack in packs) {
+            if (pack.shortName?.toLowerCase() != name) continue;
+            final images = [
+              for (final sticker in pack.stickers)
+                if (sticker.imageUrl != null) sticker.imageUrl!,
+            ];
+            if (images.isEmpty) break;
+            content = encodeSharedStickerPack(
+              shortName: name,
+              title: pack.titleRu,
+              imageUrls: images,
+            );
+            break;
+          }
+        } catch (e) {
+          debugPrint('sticker pack share encode failed: $e');
+        }
+      }
+    }
+
     try {
       await widget.chatService.sendMessage(
         conversationId: _conversation.id,
         type: MessageType.text,
-        content: text,
+        content: content,
         replyToId: replyId,
       );
       _scrollToBottom();
@@ -1531,6 +1559,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                             .retryFailedMessage(message.id)
                                         : null,
                                     onOpenStickerPack: _openStickerPack,
+                                    onAddStickerPack: _addSharedPack,
                                   ),
                                 ],
                               );
@@ -1989,6 +2018,29 @@ class _ChatScreenState extends State<ChatScreen> {
       context,
       onPick: (sticker) => _sendSticker(sticker),
     );
+  }
+
+  Future<void> _addSharedPack(SharedStickerPackLink link) async {
+    if (widget.settingsService.isGuest) {
+      await ensureRegistered(context, settings: widget.settingsService);
+      if (!mounted || widget.settingsService.isGuest) return;
+    }
+    try {
+      await StickerPackService().installOrCopy(
+        shortName: link.shortName,
+        title: link.title,
+        imageUrls: link.imageUrls,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.strings.stickerPackInstalled)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.strings.stickerPackInstallFailed}: $e')),
+      );
+    }
   }
 
   Future<void> _openStickerPack(String shortName) async {
@@ -2632,6 +2684,7 @@ class _MessageBubble extends StatelessWidget {
     this.onImageTap,
     this.onSenderTap,
     this.onOpenStickerPack,
+    this.onAddStickerPack,
     this.forceLeft = false,
     this.senderAvatarUrl,
   });
@@ -2648,6 +2701,7 @@ class _MessageBubble extends StatelessWidget {
   final ValueChanged<String>? onImageTap;
   final VoidCallback? onSenderTap;
   final ValueChanged<String>? onOpenStickerPack;
+  final Future<void> Function(SharedStickerPackLink link)? onAddStickerPack;
 
   /// Desktop mode: align every bubble to the left regardless of sender.
   final bool forceLeft;
@@ -2721,7 +2775,11 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
-    final media = MediaPayload.tryParse(message.content);
+    final shared = message.type == MessageType.text
+        ? decodeSharedStickerPack(message.content)
+        : null;
+    final media =
+        shared == null ? MediaPayload.tryParse(message.content) : null;
     final isImageType = message.type == MessageType.image ||
         message.type == MessageType.gif;
 
@@ -2926,6 +2984,13 @@ class _MessageBubble extends StatelessWidget {
                                   ],
                                 ),
                               )
+                            else if (shared != null)
+                              _SharedPackCard(
+                                link: shared,
+                                isOwn: isOwn,
+                                onAdd: onAddStickerPack,
+                                onOpen: onOpenStickerPack,
+                              )
                             else
                               _MessageText(
                                 message: message,
@@ -3073,6 +3138,104 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SharedPackCard extends StatefulWidget {
+  const _SharedPackCard({
+    required this.link,
+    required this.isOwn,
+    this.onAdd,
+    this.onOpen,
+  });
+
+  final SharedStickerPackLink link;
+  final bool isOwn;
+  final Future<void> Function(SharedStickerPackLink link)? onAdd;
+  final ValueChanged<String>? onOpen;
+
+  @override
+  State<_SharedPackCard> createState() => _SharedPackCardState();
+}
+
+class _SharedPackCardState extends State<_SharedPackCard> {
+  bool _adding = false;
+
+  Future<void> _add() async {
+    final onAdd = widget.onAdd;
+    if (onAdd == null || _adding) return;
+    setState(() => _adding = true);
+    try {
+      await onAdd(widget.link);
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = widget.isOwn
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final link = widget.link;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: widget.onOpen == null
+              ? null
+              : () => widget.onOpen!(link.shortName),
+          child: Text(
+            link.title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (link.imageUrls.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: link.imageUrls.length.clamp(0, 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                return Image.network(
+                  link.imageUrls[index],
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.broken_image_outlined),
+                );
+              },
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _adding ? null : _add,
+          style: TextButton.styleFrom(
+            foregroundColor: color,
+            backgroundColor: color.withValues(alpha: 0.14),
+            visualDensity: VisualDensity.compact,
+          ),
+          child: _adding
+              ? SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+              : Text(context.strings.addStickers),
+        ),
+      ],
     );
   }
 }
