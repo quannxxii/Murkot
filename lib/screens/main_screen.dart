@@ -19,7 +19,6 @@ import '../services/people_service.dart';
 import '../services/presence_service.dart';
 import '../services/projects_service.dart';
 import '../services/settings_service.dart';
-import '../services/sticker_pack_service.dart';
 import '../utils/configure_web.dart';
 import '../utils/invite_deep_link.dart';
 import '../utils/main_tab_bus.dart';
@@ -33,6 +32,7 @@ import '../widgets/murkot_decor.dart';
 import '../widgets/session_boot.dart';
 import '../widgets/unlumen/murkot_fx.dart';
 import 'about_murkot_screen.dart';
+import 'sticker_pack_screen.dart';
 import 'board_screen.dart';
 import 'chat_screen.dart';
 import 'guest_locked_screen.dart';
@@ -292,29 +292,16 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _openPendingStickerPack() async {
-    if (widget.authService.currentUser == null) return;
     final name = consumePendingStickerPack();
     if (name == null || !mounted) return;
-    try {
-      await StickerPackService().install(name);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.strings.stickerPackInstalled)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      final missing = e.toString().contains('install_sticker_pack') ||
-          e.toString().contains('PGRST202');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            missing
-                ? '${context.strings.stickerPackInstallFailed}. SQL: features_v31.sql'
-                : context.strings.stickerPackInstallFailed,
-          ),
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => StickerPackScreen(
+          shortName: name,
+          settingsService: widget.settingsService,
         ),
-      );
-    }
+      ),
+    );
   }
 
   Future<void> _openPendingInviteDeepLink() async {

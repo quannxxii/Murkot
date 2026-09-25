@@ -5,6 +5,35 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/sticker_packs.dart';
 
+class StickerPackPreview {
+  const StickerPackPreview({
+    required this.id,
+    required this.title,
+    required this.shortName,
+    required this.isOwner,
+    required this.isInstalled,
+    required this.stickers,
+  });
+
+  final String id;
+  final String title;
+  final String shortName;
+  final bool isOwner;
+  final bool isInstalled;
+  final List<StickerItem> stickers;
+
+  StickerPackPreview copyWith({bool? isInstalled}) {
+    return StickerPackPreview(
+      id: id,
+      title: title,
+      shortName: shortName,
+      isOwner: isOwner,
+      isInstalled: isInstalled ?? this.isInstalled,
+      stickers: stickers,
+    );
+  }
+}
+
 class StickerPackService {
   StickerPackService();
 
@@ -34,6 +63,30 @@ class StickerPackService {
     await _client.rpc(
       'install_sticker_pack',
       params: {'p_short_name': shortName.trim().toLowerCase()},
+    );
+  }
+
+  /// Public preview for `/s/<name>`. Null when the pack does not exist.
+  Future<StickerPackPreview?> preview(String shortName) async {
+    final rows = await _client.rpc(
+      'get_sticker_pack',
+      params: {'p_short_name': shortName.trim().toLowerCase()},
+    );
+    if (rows is! List || rows.isEmpty) return null;
+    final row = Map<String, dynamic>.from(rows.first as Map);
+    final id = row['id'] as String?;
+    final title = (row['title'] as String?)?.trim();
+    final name = (row['short_name'] as String?)?.trim();
+    if (id == null || title == null || title.isEmpty || name == null) {
+      return null;
+    }
+    return StickerPackPreview(
+      id: id,
+      title: title,
+      shortName: name,
+      isOwner: row['is_owner'] == true,
+      isInstalled: row['is_installed'] == true,
+      stickers: _stickerItems(row['stickers']),
     );
   }
 

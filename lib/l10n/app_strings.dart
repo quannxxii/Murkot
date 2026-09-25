@@ -800,10 +800,32 @@ class AppStrings {
       isRu ? 'Удержите стикер, чтобы удалить' : 'Hold a sticker to delete it';
   String get stickerPackInstalled =>
       isRu ? 'Стикерпак добавлен' : 'Sticker pack added';
+  String get stickerPackAlreadyAdded =>
+      isRu ? 'Уже добавлен' : 'Already added';
+  String get stickerPackNotFound =>
+      isRu ? 'Стикерпак не найден' : 'Sticker pack not found';
+  String stickerPackCount(int count) => isRu
+      ? '$count ${_ruStickers(count)}'
+      : '$count ${count == 1 ? 'sticker' : 'stickers'}';
   String get stickerPackInstallFailed =>
       isRu ? 'Не удалось добавить пак' : 'Could not add the pack';
   String get stickerDeleted => isRu ? 'Стикер удалён' : 'Sticker deleted';
   String get stickerPackDeleted => isRu ? 'Пак удалён' : 'Pack deleted';
+  String _ruStickers(int count) {
+    final n = count % 100;
+    if (n >= 11 && n <= 14) return 'стикеров';
+    switch (count % 10) {
+      case 1:
+        return 'стикер';
+      case 2:
+      case 3:
+      case 4:
+        return 'стикера';
+      default:
+        return 'стикеров';
+    }
+  }
+
   String get noStatus => isRu ? 'Без статуса' : 'No status';
   String get createChat => _l(PersonalizationKeys.createChat, 'Создать новый чат', 'Create new chat');
   String get createGroup => _l(PersonalizationKeys.createGroup, 'Создать новую группу', 'Create new group');
