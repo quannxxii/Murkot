@@ -17,6 +17,7 @@ import 'services/settings_service.dart';
 import 'utils/configure_web.dart';
 import 'utils/invite_deep_link.dart';
 import 'utils/profile_deep_link.dart';
+import 'utils/sticker_pack_link.dart';
 import 'widgets/murkot_boot_screen.dart';
 import 'widgets/unlumen/murkot_theme_transition.dart';
 
@@ -25,6 +26,7 @@ Future<void> main() async {
   configureWebApp();
   captureInitialProfileDeepLink();
   captureInitialInviteDeepLink();
+  captureInitialStickerPackLink();
 
   await Supabase.initialize(
     url: SupabaseConfig.url,

@@ -1,9 +1,19 @@
 class StickerItem {
-  const StickerItem({required this.id, required this.glyph, required this.label});
+  const StickerItem({
+    required this.id,
+    this.glyph = '',
+    this.label = '',
+    this.imageUrl,
+  });
 
   final String id;
   final String glyph;
   final String label;
+
+  /// Set for stickers the user added to their own pack.
+  final String? imageUrl;
+
+  bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;
 }
 
 class StickerPack {
@@ -12,12 +22,20 @@ class StickerPack {
     required this.titleRu,
     required this.titleEn,
     required this.stickers,
+    this.shortName,
+    this.isOwner = false,
   });
 
   final String id;
   final String titleRu;
   final String titleEn;
   final List<StickerItem> stickers;
+
+  /// Public slug for `/s/<shortName>`. Built-in packs have none.
+  final String? shortName;
+
+  /// True when the signed-in user created this pack.
+  final bool isOwner;
 
   String title(bool isRu) => isRu ? titleRu : titleEn;
 }

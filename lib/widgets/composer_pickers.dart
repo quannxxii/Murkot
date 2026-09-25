@@ -1,12 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../data/emoji_categories.dart';
 import '../data/sticker_packs.dart';
 import '../l10n/app_strings.dart';
 import '../services/chat_service.dart';
 import '../services/gif_service.dart';
+import '../services/sticker_pack_service.dart';
+import '../utils/sticker_pack_link.dart';
+import 'confirm_dialogs.dart';
 
 Future<void> showEmojiPicker(
   BuildContext context, {
@@ -94,84 +99,437 @@ Future<void> showStickerPicker(
     showDragHandle: true,
     isScrollControlled: true,
     builder: (context) {
-      final strings = context.strings;
       return DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.84,
-        minChildSize: 0.48,
-        maxChildSize: 0.96,
-        builder: (context, scrollController) {
-          return DefaultTabController(
-            length: kStickerPacks.length,
-            child: SafeArea(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 6),
-                    child: Text(
-                      strings.stickerPickerTitle,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  TabBar(
-                    isScrollable: true,
-                    tabs: [
-                      for (final pack in kStickerPacks)
-                        Tab(text: pack.title(strings.isRu)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        for (final pack in kStickerPacks)
-                          GridView.count(
-                            controller: scrollController,
-                            crossAxisCount: 4,
-                            padding: const EdgeInsets.all(14),
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1.05,
-                            children: [
-                              for (final sticker in pack.stickers)
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(18),
-                                  onTap: () {
-                                    Navigator.pop(context);
-                                    onPick(sticker);
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest
-                                          .withValues(alpha: 0.6),
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        sticker.glyph,
-                                        style: const TextStyle(fontSize: 50),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+        initialChildSize: 0.46,
+        minChildSize: 0.34,
+        maxChildSize: 0.72,
+        builder: (context, _) {
+          return _StickerPickerSheet(onPick: onPick);
         },
       );
     },
   );
+}
+
+class _StickerPickerSheet extends StatefulWidget {
+  const _StickerPickerSheet({required this.onPick});
+
+  final void Function(StickerItem sticker) onPick;
+
+  @override
+  State<_StickerPickerSheet> createState() => _StickerPickerSheetState();
+}
+
+class _StickerPickerSheetState extends State<_StickerPickerSheet>
+    with TickerProviderStateMixin {
+  bool _saving = false;
+
+  /// File picker must run inside the tap, before any dialog.
+  /// On web the browser drops the gesture after the first await.
+  Future<void> _createPack() async {
+    if (_saving) return;
+    final files = await ImagePicker().pickMultiImage(imageQuality: 85);
+    if (files.isEmpty || !mounted) return;
+    final strings = context.strings;
+    final title = await showTextInputDialog(
+      context: context,
+      title: strings.newStickerPackTitle,
+      hint: strings.newStickerPackHint,
+      maxLength: 40,
+      validator: (value) {
+        final text = value?.trim() ?? '';
+        if (text.isEmpty) return strings.nameRequired;
+        return null;
+      },
+    );
+    if (title == null || !mounted) return;
+    await _saveStickers(files, title: title.trim());
+  }
+
+  Future<void> _addToCurrent() async {
+    if (_saving) return;
+    final pack = _packs[_tabs.index];
+    if (!pack.isOwner) return;
+    final files = await ImagePicker().pickMultiImage(imageQuality: 85);
+    if (files.isEmpty || !mounted) return;
+    await _saveStickers(files, packId: pack.id);
+  }
+
+  Future<void> _sharePack(StickerPack pack) async {
+    final name = pack.shortName;
+    if (name == null) return;
+    await Clipboard.setData(
+      ClipboardData(text: buildPublicStickerPackUrl(name)),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.strings.stickerPackLinkCopied)),
+    );
+  }
+
+  Future<void> _deleteSticker(StickerItem sticker) async {
+    if (_saving) return;
+    final strings = context.strings;
+    final ok = await showConfirmDialog(
+      context: context,
+      title: strings.deleteSticker,
+      message: strings.deleteStickerConfirm,
+      confirmLabel: strings.deleteAction,
+      isDestructive: true,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await StickerPackService().deleteSticker(sticker.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.stickerDeleted)),
+      );
+      await _loadMine();
+    } catch (e) {
+      if (!mounted) return;
+      _showSqlError(e, strings.stickersSaveFailed);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _deletePack(StickerPack pack) async {
+    if (_saving) return;
+    final strings = context.strings;
+    final ok = await showConfirmDialog(
+      context: context,
+      title: strings.deleteStickerPack,
+      message: strings.deleteStickerPackConfirm,
+      confirmLabel: strings.deleteAction,
+      isDestructive: true,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await StickerPackService().deletePack(pack.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.stickerPackDeleted)),
+      );
+      await _loadMine();
+    } catch (e) {
+      if (!mounted) return;
+      _showSqlError(e, strings.stickersSaveFailed);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showSqlError(Object error, String fallback) {
+    final text = error.toString();
+    final missing = text.contains('PGRST202') ||
+        text.contains('delete_my_sticker') ||
+        text.contains('sticker_packs') ||
+        text.contains('create_my_sticker_pack') ||
+        text.contains('add_my_sticker');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          missing ? '$fallback. SQL: features_v29.sql, features_v30.sql и features_v31.sql' : '$fallback: $error',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveStickers(
+    List<XFile> files, {
+    String? packId,
+    String? title,
+  }) async {
+    setState(() => _saving = true);
+    final strings = context.strings;
+    try {
+      final id = packId ?? await StickerPackService().createPack(title!);
+      for (final file in files) {
+        await StickerPackService().addImage(
+          packId: id,
+          bytes: await file.readAsBytes(),
+          fileName: file.name.isEmpty ? 'sticker.png' : file.name,
+        );
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.stickersSaved)),
+      );
+      await _loadMine(selectFirstCustom: packId == null);
+    } catch (e) {
+      if (!mounted) return;
+      _showSqlError(e, strings.stickersSaveFailed);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+  late TabController _tabs;
+  List<StickerPack> _packs = kStickerPacks;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: _packs.length, vsync: this);
+    _bindTabs(_tabs);
+    _loadMine();
+  }
+
+  void _bindTabs(TabController controller) {
+    controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _loadMine({bool selectFirstCustom = false}) async {
+    try {
+      final mine = await StickerPackService().loadMine();
+      if (!mounted) return;
+      final next = [...mine, ...kStickerPacks];
+      final previous = selectFirstCustom ? 0 : _tabs.index;
+      _tabs.dispose();
+      _tabs = TabController(
+        length: next.length,
+        vsync: this,
+        initialIndex: previous.clamp(0, next.length - 1),
+      );
+      _bindTabs(_tabs);
+      setState(() => _packs = next);
+    } catch (e) {
+      debugPrint('sticker packs load failed: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 4, 4),
+            child: _PackHeader(
+              pack: _packs[_tabs.index],
+              saving: _saving,
+              onShare: () => _sharePack(_packs[_tabs.index]),
+              onDelete: () => _deletePack(_packs[_tabs.index]),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                for (final pack in _packs)
+                  GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                      mainAxisSpacing: 4,
+                      crossAxisSpacing: 4,
+                    ),
+                    itemCount: pack.stickers.length + (pack.isOwner ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (pack.isOwner && index == 0) {
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: _saving ? null : _addToCurrent,
+                          child: Icon(
+                            Icons.add_rounded,
+                            size: 32,
+                            color: theme.colorScheme.primary,
+                          ),
+                        );
+                      }
+                      final sticker =
+                          pack.stickers[index - (pack.isOwner ? 1 : 0)];
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => widget.onPick(sticker),
+                        onLongPress: pack.isOwner && sticker.isImage
+                            ? () => _deleteSticker(sticker)
+                            : null,
+                        child: Center(child: _StickerGlyph(sticker: sticker)),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 52,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: _packs.length + 1,
+              separatorBuilder: (_, __) => const SizedBox(width: 4),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _saving ? null : _createPack,
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(
+                        _saving ? Icons.hourglass_top : Icons.add_rounded,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  );
+                }
+                final pack = _packs[index - 1];
+                final selected = _tabs.index == index - 1;
+                final icon = pack.stickers.isEmpty ? null : pack.stickers.first;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => setState(() => _tabs.index = index - 1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? theme.colorScheme.primary.withValues(alpha: 0.16)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: icon == null
+                          ? Text(
+                              pack.title(strings.isRu).characters.first,
+                              style: const TextStyle(fontSize: 22),
+                            )
+                          : _PackIcon(sticker: icon),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PackHeader extends StatelessWidget {
+  const _PackHeader({
+    required this.pack,
+    required this.saving,
+    required this.onShare,
+    required this.onDelete,
+  });
+
+  final StickerPack pack;
+  final bool saving;
+  final VoidCallback onShare;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    final theme = Theme.of(context);
+    final name = pack.shortName;
+    final subtitle = pack.isOwner && name != null
+        ? '$name · ${strings.stickerHoldToDelete}'
+        : name ?? (pack.isOwner ? strings.stickerHoldToDelete : '');
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                pack.title(strings.isRu),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (subtitle.isNotEmpty)
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (name != null)
+          IconButton(
+            tooltip: strings.shareStickerPack,
+            onPressed: onShare,
+            icon: const Icon(Icons.link_rounded),
+          ),
+        if (pack.isOwner)
+          IconButton(
+            tooltip: strings.deleteStickerPack,
+            onPressed: saving ? null : onDelete,
+            icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+          ),
+      ],
+    );
+  }
+}
+
+class _PackIcon extends StatelessWidget {
+  const _PackIcon({required this.sticker});
+
+  final StickerItem sticker;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!sticker.isImage) {
+      return Text(sticker.glyph, style: const TextStyle(fontSize: 24));
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.network(
+        sticker.imageUrl!,
+        width: 28,
+        height: 28,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.sticky_note_2_outlined, size: 22),
+      ),
+    );
+  }
+}
+
+class _StickerGlyph extends StatelessWidget {
+  const _StickerGlyph({required this.sticker});
+
+  final StickerItem sticker;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!sticker.isImage) {
+      return Text(sticker.glyph, style: const TextStyle(fontSize: 40));
+    }
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Image.network(
+        sticker.imageUrl!,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.broken_image_outlined),
+      ),
+    );
+  }
 }
 
 Future<void> showGifPicker(

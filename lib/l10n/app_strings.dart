@@ -772,8 +772,38 @@ class AppStrings {
   String get chatWithBot =>
       isRu ? 'Написать Murkot' : 'Message Murkot';
   String get botSubtitle => isRu
-      ? 'Бот отвечает в реальном времени'
-      : 'Bot replies in real time';
+      ? 'Подскажет, где доска, мэтч и люди'
+      : 'Guides you around the board, match, and people';
+  String get botChipBoard => isRu ? 'Доска' : 'Board';
+  String get botChipMatch => isRu ? 'Мэтч' : 'Match';
+  String get botChipPeople => isRu ? 'Люди' : 'People';
+  String get botChipListings => isRu ? 'Объявления' : 'Listings';
+  String get botChipNewPack => isRu ? 'Новый пак' : 'New pack';
+  String get newStickerPackTitle => isRu ? 'Новый стикерпак' : 'New sticker pack';
+  String get newStickerPackHint => isRu ? 'Название пака' : 'Pack name';
+  String get addStickers => isRu ? 'Добавить стикеры' : 'Add stickers';
+  String get stickersSaved => isRu ? 'Стикеры добавлены' : 'Stickers added';
+  String get stickersSaveFailed =>
+      isRu ? 'Не удалось добавить стикеры' : 'Could not add stickers';
+  String get shareStickerPack =>
+      isRu ? 'Скопировать ссылку' : 'Copy link';
+  String get stickerPackLinkCopied =>
+      isRu ? 'Ссылка на пак скопирована' : 'Pack link copied';
+  String get deleteStickerPack => isRu ? 'Удалить пак' : 'Delete pack';
+  String get deleteStickerPackConfirm => isRu
+      ? 'Пак пропадёт у всех, кто его добавил.'
+      : 'The pack will disappear for everyone who added it.';
+  String get deleteSticker => isRu ? 'Удалить стикер' : 'Delete sticker';
+  String get deleteStickerConfirm =>
+      isRu ? 'Убрать этот стикер из пака?' : 'Remove this sticker from the pack?';
+  String get stickerHoldToDelete =>
+      isRu ? 'Удержите стикер, чтобы удалить' : 'Hold a sticker to delete it';
+  String get stickerPackInstalled =>
+      isRu ? 'Стикерпак добавлен' : 'Sticker pack added';
+  String get stickerPackInstallFailed =>
+      isRu ? 'Не удалось добавить пак' : 'Could not add the pack';
+  String get stickerDeleted => isRu ? 'Стикер удалён' : 'Sticker deleted';
+  String get stickerPackDeleted => isRu ? 'Пак удалён' : 'Pack deleted';
   String get noStatus => isRu ? 'Без статуса' : 'No status';
   String get createChat => _l(PersonalizationKeys.createChat, 'Создать новый чат', 'Create new chat');
   String get createGroup => _l(PersonalizationKeys.createGroup, 'Создать новую группу', 'Create new group');

@@ -103,7 +103,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _bootstrapMessages();
   }
 
+  bool get _isBotChat => widget.chatService.isBotConversation(_conversation);
+
   Future<void> _bootstrapMessages() async {
+    if (_isBotChat) {
+      await widget.chatService.ensureBotGreeting(_conversation.id);
+    }
     await widget.chatService.ensureMessagesLoaded(_conversation.id);
     if (!mounted) return;
     await widget.chatService.markMessagesRead(_conversation.id);
@@ -297,6 +302,23 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (!mounted) return;
       // Offline queue keeps the bubble; only hard policy errors show snackbar.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
+  Future<void> _sendBotPrompt(String text) async {
+    if (!widget.chatService.canSendMessages(_conversation)) return;
+    try {
+      await widget.chatService.sendMessage(
+        conversationId: _conversation.id,
+        type: MessageType.text,
+        content: text,
+      );
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$e')),
       );
@@ -1623,18 +1645,49 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       )
                     else
-                      _MessageInputBar(
-                        controller: _messageController,
-                        focusNode: _messageFocusNode,
-                        onChanged: _onTextChanged,
-                        onSend: _sendText,
-                        onAttach: _showAttachMenu,
-                        onCircle: _sendCircleVideo,
-                        onVoiceStart: _startVoiceNote,
-                        hintText: _drafts.isNotEmpty
-                            ? strings.captionHint
-                            : null,
-                        forceSendButton: _drafts.isNotEmpty,
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isBotChat)
+                            _BotPromptBar(
+                              labels: [
+                                (
+                                  strings.botChipBoard,
+                                  strings.isRu ? 'доска' : 'board',
+                                ),
+                                (
+                                  strings.botChipMatch,
+                                  strings.isRu ? 'мэтч' : 'match',
+                                ),
+                                (
+                                  strings.botChipPeople,
+                                  strings.isRu ? 'люди' : 'people',
+                                ),
+                                (
+                                  strings.botChipListings,
+                                  strings.isRu ? 'объявления' : 'listings',
+                                ),
+                                (
+                                  strings.botChipNewPack,
+                                  strings.isRu ? 'новый пак' : 'newpack',
+                                ),
+                              ],
+                              onPrompt: _sendBotPrompt,
+                            ),
+                          _MessageInputBar(
+                            controller: _messageController,
+                            focusNode: _messageFocusNode,
+                            onChanged: _onTextChanged,
+                            onSend: _sendText,
+                            onAttach: _showAttachMenu,
+                            onCircle: _sendCircleVideo,
+                            onVoiceStart: _startVoiceNote,
+                            hintText: _drafts.isNotEmpty
+                                ? strings.captionHint
+                                : null,
+                            forceSendButton: _drafts.isNotEmpty,
+                          ),
+                        ],
                       ),
                   ] else
                     Container(
@@ -1941,7 +1994,9 @@ class _ChatScreenState extends State<ChatScreen> {
       await widget.chatService.sendMessage(
         conversationId: _conversation.id,
         type: MessageType.sticker,
-        content: sticker.glyph,
+        content: sticker.isImage
+            ? MediaPayload(url: sticker.imageUrl!, name: 'sticker').encode()
+            : sticker.glyph,
       );
       _scrollToBottom();
     } catch (e) {
@@ -2598,9 +2653,52 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
+    if (message.type == MessageType.sticker) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Align(
+          alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+          child: GestureDetector(
+            onLongPressStart: (d) => onLongPress(d.globalPosition),
+            child: Column(
+              crossAxisAlignment: alignRight
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (showAvatar)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2, left: 4),
+                    child: GestureDetector(
+                      onTap: onSenderTap,
+                      child: Text(
+                        message.senderName,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                _StickerMessage(content: message.content),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 4, left: 4),
+                  child: Text(
+                    formatMessageTime(message.timestamp),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final media = MediaPayload.tryParse(message.content);
     final isImageType = message.type == MessageType.image ||
-        message.type == MessageType.sticker ||
         message.type == MessageType.gif;
 
     return Padding(
@@ -2804,11 +2902,6 @@ class _MessageBubble extends StatelessWidget {
                                   ],
                                 ),
                               )
-                            else if (message.type == MessageType.sticker)
-                              Text(
-                                message.content,
-                                style: const TextStyle(fontSize: 56),
-                              )
                             else
                               Text(
                                 message.type == MessageType.text
@@ -2960,6 +3053,67 @@ class _MessageBubble extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StickerMessage extends StatelessWidget {
+  const _StickerMessage({required this.content});
+
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaPayload.tryParse(content);
+    if (media == null) {
+      return Text(content, style: const TextStyle(fontSize: 104, height: 1));
+    }
+    return Image.network(
+      media.url,
+      width: 168,
+      height: 168,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, __, ___) =>
+          const Icon(Icons.broken_image_outlined, size: 48),
+    );
+  }
+}
+
+class _BotPromptBar extends StatelessWidget {
+  const _BotPromptBar({
+    required this.labels,
+    required this.onPrompt,
+  });
+
+  final List<(String, String)> labels;
+  final ValueChanged<String> onPrompt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        itemCount: labels.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final (label, command) = labels[index];
+          return ActionChip(
+            label: Text(label),
+            visualDensity: VisualDensity.compact,
+            backgroundColor: theme.colorScheme.primaryContainer,
+            labelStyle: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w600,
+            ),
+            side: BorderSide.none,
+            onPressed: () => onPrompt(command),
+          );
+        },
       ),
     );
   }

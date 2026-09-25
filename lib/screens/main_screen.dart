@@ -19,10 +19,12 @@ import '../services/people_service.dart';
 import '../services/presence_service.dart';
 import '../services/projects_service.dart';
 import '../services/settings_service.dart';
+import '../services/sticker_pack_service.dart';
 import '../utils/configure_web.dart';
 import '../utils/invite_deep_link.dart';
 import '../utils/main_tab_bus.dart';
 import '../utils/profile_deep_link.dart';
+import '../utils/sticker_pack_link.dart';
 import '../widgets/ad_ticker.dart';
 import '../widgets/avatar_display.dart';
 import '../widgets/command_palette.dart';
@@ -82,6 +84,14 @@ class _MainScreenState extends State<MainScreen> {
     _notificationService.attachSettings(widget.settingsService);
     mainTabIndex.addListener(_onExternalTabChange);
     _initServices();
+  }
+
+  @override
+  void didUpdateWidget(MainScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isGuest && !widget.isGuest) {
+      unawaited(_openPendingStickerPack());
+    }
   }
 
   void _onExternalTabChange() {
@@ -278,6 +288,33 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _openPendingDeepLinks() async {
     await _openPendingInviteDeepLink();
     await _openPendingProfileDeepLink();
+    await _openPendingStickerPack();
+  }
+
+  Future<void> _openPendingStickerPack() async {
+    if (widget.authService.currentUser == null) return;
+    final name = consumePendingStickerPack();
+    if (name == null || !mounted) return;
+    try {
+      await StickerPackService().install(name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.strings.stickerPackInstalled)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final missing = e.toString().contains('install_sticker_pack') ||
+          e.toString().contains('PGRST202');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            missing
+                ? '${context.strings.stickerPackInstallFailed}. SQL: features_v31.sql'
+                : context.strings.stickerPackInstallFailed,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _openPendingInviteDeepLink() async {

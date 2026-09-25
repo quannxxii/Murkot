@@ -303,7 +303,29 @@ class ChatService extends ChangeNotifier {
       forcePeerDisplay: true,
       peerAvatarUrl: user.avatarUrl,
     );
+    if (user.isBot || user.id == botUserId) {
+      await ensureBotGreeting(conversation.id);
+    }
     return conversation;
+  }
+
+  bool isBotConversation(Conversation conversation) {
+    if (conversation.type != ConversationType.direct) return false;
+    final bot = botLogin.toLowerCase();
+    if (conversation.name.toLowerCase() == bot) return true;
+    return conversation.memberIds.any((login) => login.toLowerCase() == bot);
+  }
+
+  /// Inserts the guide message once, when the direct chat with Murkot is empty.
+  Future<void> ensureBotGreeting(String conversationId) async {
+    try {
+      await _client.rpc(
+        'ensure_bot_greeting',
+        params: {'p_conversation_id': conversationId},
+      );
+    } catch (e) {
+      debugPrint('ensure_bot_greeting failed: $e');
+    }
   }
 
   Future<Conversation> openBotChat() async {
