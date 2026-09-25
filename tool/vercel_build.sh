@@ -24,6 +24,6 @@ flutter --version
 flutter config --no-analytics --enable-web
 flutter precache --web
 flutter pub get
-flutter build web --release --base-href /
+flutter build web --release --base-href / --pwa-strategy=none
 
 echo "Build output: $ROOT/build/web"

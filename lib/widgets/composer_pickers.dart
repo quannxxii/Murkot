@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../data/emoji_categories.dart';
 import '../data/sticker_packs.dart';
@@ -10,6 +9,7 @@ import '../l10n/app_strings.dart';
 import '../services/chat_service.dart';
 import '../services/gif_service.dart';
 import '../services/sticker_pack_service.dart';
+import '../utils/sticker_image_pick.dart';
 import '../utils/sticker_pack_link.dart';
 import 'confirm_dialogs.dart';
 
@@ -125,15 +125,27 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
     with TickerProviderStateMixin {
   bool _saving = false;
 
-  /// File picker must run inside the tap, before any dialog.
-  /// On web the browser drops the gesture after the first await.
+  /// File dialog must open in this tap. On the release build the browser
+  /// drops the gesture if ImagePicker waits first, so the dialog never appears.
   Future<void> _createPack() async {
     if (_saving) return;
-    final files = await ImagePicker().pickMultiImage(imageQuality: 85);
-    if (files.isEmpty || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context, rootNavigator: true);
     final strings = context.strings;
+    final List<PickedStickerImage> files;
+    try {
+      files = await pickStickerImages();
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('${strings.stickersSaveFailed}: $e')),
+      );
+      return;
+    }
+    if (files.isEmpty) return;
+    final dialogContext = mounted ? context : navigator.context;
+    if (!dialogContext.mounted) return;
     final title = await showTextInputDialog(
-      context: context,
+      context: dialogContext,
       title: strings.newStickerPackTitle,
       hint: strings.newStickerPackHint,
       maxLength: 40,
@@ -143,17 +155,27 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
         return null;
       },
     );
-    if (title == null || !mounted) return;
-    await _saveStickers(files, title: title.trim());
+    if (title == null) return;
+    await _saveStickers(files, title: title.trim(), messenger: messenger);
   }
 
   Future<void> _addToCurrent() async {
     if (_saving) return;
     final pack = _packs[_tabs.index];
     if (!pack.isOwner) return;
-    final files = await ImagePicker().pickMultiImage(imageQuality: 85);
-    if (files.isEmpty || !mounted) return;
-    await _saveStickers(files, packId: pack.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final strings = context.strings;
+    final List<PickedStickerImage> files;
+    try {
+      files = await pickStickerImages();
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('${strings.stickersSaveFailed}: $e')),
+      );
+      return;
+    }
+    if (files.isEmpty) return;
+    await _saveStickers(files, packId: pack.id, messenger: messenger);
   }
 
   Future<void> _sharePack(StickerPack pack) async {
@@ -222,14 +244,19 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
     }
   }
 
-  void _showSqlError(Object error, String fallback) {
+  void _showSqlError(
+    Object error,
+    String fallback, [
+    ScaffoldMessengerState? messenger,
+  ]) {
     final text = error.toString();
     final missing = text.contains('PGRST202') ||
         text.contains('delete_my_sticker') ||
         text.contains('sticker_packs') ||
         text.contains('create_my_sticker_pack') ||
         text.contains('add_my_sticker');
-    ScaffoldMessenger.of(context).showSnackBar(
+    final bar = messenger ?? ScaffoldMessenger.of(context);
+    bar.showSnackBar(
       SnackBar(
         content: Text(
           missing ? '$fallback. SQL: features_v29.sql, features_v30.sql и features_v31.sql' : '$fallback: $error',
@@ -239,29 +266,32 @@ class _StickerPickerSheetState extends State<_StickerPickerSheet>
   }
 
   Future<void> _saveStickers(
-    List<XFile> files, {
+    List<PickedStickerImage> files, {
     String? packId,
     String? title,
+    ScaffoldMessengerState? messenger,
   }) async {
-    setState(() => _saving = true);
-    final strings = context.strings;
+    if (mounted) setState(() => _saving = true);
+    final strings = mounted ? context.strings : null;
+    final bar = messenger ??
+        (mounted ? ScaffoldMessenger.of(context) : null);
     try {
-      final id = packId ?? await StickerPackService().createPack(title!);
+      final service = StickerPackService();
+      final id = packId ?? await service.createPack(title!);
       for (final file in files) {
-        await StickerPackService().addImage(
+        await service.addImage(
           packId: id,
-          bytes: await file.readAsBytes(),
-          fileName: file.name.isEmpty ? 'sticker.png' : file.name,
+          bytes: file.bytes,
+          fileName: file.name,
         );
       }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.stickersSaved)),
-      );
-      await _loadMine(selectFirstCustom: packId == null);
+      final saved = strings?.stickersSaved ?? 'Stickers added';
+      bar?.showSnackBar(SnackBar(content: Text(saved)));
+      if (mounted) await _loadMine(selectFirstCustom: packId == null);
     } catch (e) {
-      if (!mounted) return;
-      _showSqlError(e, strings.stickersSaveFailed);
+      if (strings != null && bar != null) {
+        _showSqlError(e, strings.stickersSaveFailed, bar);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
